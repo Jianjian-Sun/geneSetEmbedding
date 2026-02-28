@@ -210,6 +210,20 @@ gsemb_gene_similarity <- function(x,
 #' @param eps Lower bound for variances.
 #'
 #' @return A numeric distance matrix.
+#' @examples
+#' \dontrun{
+#' # Assuming you have a fitted gsemb_embedding object named 'fit'
+#' # (see example in gsemb_fit)
+#' # Compute Wasserstein-2 distances between all gene sets
+#' dist_w2 <- gsemb_set_similarity(fit, metric = "w2")
+#' 
+#' # Compute symmetric KL divergences for a subset of sets
+#' dist_kl <- gsemb_set_similarity(
+#'   fit,
+#'   sets = c("SET1", "SET2"),
+#'   metric = "sym_kl"
+#' )
+#' }
 #' @export
 gsemb_set_similarity <- function(x,
                                sets = NULL,
@@ -251,6 +265,30 @@ gsemb_set_similarity <- function(x,
 #' @param min_size Minimum number of genes per cluster after intersecting with the embedding.
 #'
 #' @return A numeric distance matrix (clusters x other_clusters).
+#' @examples
+#' \dontrun{
+#' # Assuming you have a fitted gsemb_embedding object named 'fit'
+#' # (see example in gsemb_fit)
+#' # Define some custom clusters
+#' clusters <- list(
+#'   CLUST1 = c("GENE1", "GENE2", "GENE3"),
+#'   CLUST2 = c("GENE4", "GENE5", "GENE6")
+#' )
+#' # Compute distances between these clusters
+#' dist_mat <- gsemb_cluster_similarity(fit, clusters = clusters, metric = "w2")
+#' 
+#' # Compute distances between two different cluster lists
+#' other_clusters <- list(
+#'   OTHER1 = c("GENE10", "GENE11"),
+#'   OTHER2 = c("GENE12", "GENE13", "GENE14")
+#' )
+#' dist_mat2 <- gsemb_cluster_similarity(
+#'   fit,
+#'   clusters = clusters,
+#'   other_clusters = other_clusters,
+#'   metric = "sym_kl"
+#' )
+#' }
 #' @export
 gsemb_cluster_similarity <- function(x,
                                    clusters,
@@ -290,6 +328,21 @@ gsemb_cluster_similarity <- function(x,
 #' @param ... Passed to `gsemb_make_concise_gene_sets`.
 #'
 #' @return A named list of concise gene sets.
+#' @examples
+#' \dontrun{
+#' # Assuming you have a fitted gsemb_embedding object named 'fit'
+#' # (see example in gsemb_fit)
+#' # Define original gene sets
+#' orig_sets <- list(
+#'   PATH1 = c("GENE1", "GENE2", "GENE3", "GENE4", "GENE5"),
+#'   PATH2 = c("GENE3", "GENE4", "GENE6", "GENE7")
+#' )
+#' # Create concise versions
+#' concise <- gsemb_concise_gene_sets(fit, gene_sets = orig_sets, top_n = 3)
+#' 
+#' # View concise sets
+#' str(concise)
+#' }
 #' @export
 gsemb_concise_gene_sets <- function(x,
                                   gene_sets,
@@ -326,6 +379,18 @@ gsemb_train_embedding_from_ppi_and_genesets <- function(ppi_edges,
 #' @param eps_set Lower bound for Gaussian variances.
 #'
 #' @return A list with `gene_gene`, `set_set_w2`, and `set_set_kl`.
+#' @examples
+#' \dontrun{
+#' # Assuming you have a fitted gsemb_embedding object named 'fit'
+#' # (see example in gsemb_fit)
+#' # Compute all similarity matrices
+#' all_sims <- gsemb_calculate_all_similarities(fit)
+#' 
+#' # Access individual matrices
+#' gene_gene_sim <- all_sims$gene_gene
+#' set_set_w2 <- all_sims$set_set_w2
+#' set_set_kl <- all_sims$set_set_kl
+#' }
 #' @export
 gsemb_calculate_all_similarities <- function(x,
                                            eps_gene = 1e-12,
