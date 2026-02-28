@@ -417,6 +417,55 @@ gsemb_get_concise_gene_sets <- function(x,
     gsemb_concise_gene_sets(x, gene_sets = gene_sets, ...)
 }
 
+#' Enrichment analysis using gene‑set Gaussian embeddings
+#'
+#' Given a vector of gene‑level statistics (e.g., log‑fold‑changes, p‑values),
+#' compute enrichment scores for each gene set based on the likelihood of the
+#' statistics under the set’s Gaussian embedding. Permutation‑based p‑values
+#' and multiple‑testing adjusted q‑values are provided.
+#'
+#' @param gene_stats Named numeric vector of gene‑level statistics.
+#' @param x A `gsemb_embedding` object.
+#' @param sets Optional character vector of set IDs to test.
+#' @param gene_sets Named list of original gene‑set members (used for set‑size
+#'   reporting and for restricting the candidate genes when `sets` is supplied).
+#' @param score Scoring method: `"loglik"` (full Gaussian log‑likelihood) or
+#'   `"neg_mahalanobis"` (negative squared Mahalanobis distance).
+#' @param temperature Soft‑max temperature for converting scores to weights.
+#' @param nperm Number of permutations for null distribution.
+#' @param alternative Alternative hypothesis for permutation test.
+#' @param seed Random seed for permutations.
+#' @param eps Small constant added to variances for numerical stability.
+#' @param top_genes Number of top‑weighted genes to report in `core_enrichment`.
+#'
+#' @return A data.frame with columns: `ID`, `ES` (enrichment score), `z` (z‑score),
+#'   `pvalue`, `p.adjust`, `setSize`, `core_enrichment`.
+#' @examples
+#' \dontrun{
+#' # Assuming you have a fitted gsemb_embedding object named 'fit'
+#' # (see example in gsemb_fit)
+#' # Simulate some gene‑level statistics
+#' all_genes <- rownames(fit$gene_embedding)
+#' stats <- rnorm(length(all_genes))
+#' names(stats) <- all_genes
+#' 
+#' # Run enrichment analysis
+#' enrich <- gsemb_embedding_enrichment(
+#'   gene_stats = stats,
+#'   x = fit,
+#'   gene_sets = list(
+#'     SET1 = sample(all_genes, 10),
+#'     SET2 = sample(all_genes, 8)
+#'   ),
+#'   score = "loglik",
+#'   nperm = 100,
+#'   alternative = "greater"
+#' )
+#' 
+#' # View top enriched sets
+#' head(enrich[order(enrich$pvalue), ])
+#' }
+#' @export
 gsemb_embedding_enrichment <- function(gene_stats,
                                       x,
                                       sets = NULL,
