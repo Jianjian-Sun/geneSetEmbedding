@@ -25,6 +25,44 @@
 #'
 #' @return A `gsemb_embedding` object with components:
 #'   `gene_embedding`, `set_mu`, `set_var`, `adj`, and training metadata.
+#' @examples
+#' \dontrun{
+#' # Simulate a small PPI edge list
+#' set.seed(42)
+#' nodes <- paste0("GENE", 1:50)
+#' edges <- data.frame(
+#'   node1 = sample(nodes, 200, replace = TRUE),
+#'   node2 = sample(nodes, 200, replace = TRUE),
+#'   weight = runif(200, 0.5, 1)
+#' )
+#' # Remove self-loops
+#' edges <- edges[edges$node1 != edges$node2, ]
+#' 
+#' # Simulate a few gene sets
+#' gene_sets <- list(
+#'   SET1 = sample(nodes, 10),
+#'   SET2 = sample(nodes, 8),
+#'   SET3 = sample(nodes, 12)
+#' )
+#' 
+#' # Fit embedding using SVD (fastest method)
+#' fit <- gsemb_fit(
+#'   ppi = edges,
+#'   gene_sets = gene_sets,
+#'   method = "svd",
+#'   dim = 16,
+#'   k = 20,
+#'   alpha = 0.5,
+#'   epochs = 5
+#' )
+#' 
+#' # Inspect the result
+#' print(fit)
+#' 
+#' # Compute gene-gene similarities
+#' sim <- gsemb_gene_similarity(fit)
+#' dim(sim)
+#' }
 #' @export
 gsemb_fit <- function(ppi,
                     gene_sets,
