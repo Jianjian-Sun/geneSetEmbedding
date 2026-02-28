@@ -169,6 +169,15 @@ gsemb_fit <- function(ppi,
 #' @param eps Small constant for numerical stability.
 #'
 #' @return A numeric similarity matrix.
+#' @examples
+#' \dontrun{
+#' # Assuming you have a fitted gsemb_embedding object named 'fit'
+#' # (see example in gsemb_fit)
+#' sim_all <- gsemb_gene_similarity(fit)
+#' 
+#' # Compute similarities for a subset of genes
+#' sim_sub <- gsemb_gene_similarity(fit, genes = c("GENE1", "GENE2", "GENE3"))
+#' }
 #' @export
 gsemb_gene_similarity <- function(x,
                                 genes = NULL,
