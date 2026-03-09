@@ -10,6 +10,27 @@
 #' @param eps Lower bound for variances.
 #'
 #' @return A numeric matrix with genes in rows and sets in columns.
+#' @examples
+#' # Simulate a small gene embedding and set parameters
+#' set.seed(456)
+#' gene_emb <- matrix(rnorm(15), nrow = 5, ncol = 3)
+#' rownames(gene_emb) <- paste0("GENE", 1:5)
+#' 
+#' set_mu <- matrix(rnorm(6), nrow = 2, ncol = 3)
+#' set_var <- matrix(rexp(6, rate = 1), nrow = 2, ncol = 3)
+#' rownames(set_mu) <- rownames(set_var) <- c("PATH1", "PATH2")
+#' 
+#' # Compute log-likelihood scores
+#' scores_loglik <- gsemb_gene_to_set_score(
+#'   gene_emb, set_mu, set_var, score = "loglik"
+#' )
+#' dim(scores_loglik)
+#' 
+#' # Compute negative Mahalanobis distance scores
+#' scores_negmah <- gsemb_gene_to_set_score(
+#'   gene_emb, set_mu, set_var, score = "neg_mahalanobis"
+#' )
+#' dim(scores_negmah)
 #' @export
 gsemb_gene_to_set_score <- function(gene_embedding,
                                   set_mu,
@@ -64,6 +85,30 @@ gsemb_gene_to_set_score <- function(gene_embedding,
 #' @param eps Lower bound for variances.
 #'
 #' @return A named list of concise gene sets (character vectors).
+#' @examples
+#' # Simulate embeddings and gene sets
+#' set.seed(789)
+#' gene_emb <- matrix(rnorm(30), nrow = 10, ncol = 3)
+#' rownames(gene_emb) <- paste0("GENE", 1:10)
+#' 
+#' set_mu <- matrix(rnorm(6), nrow = 2, ncol = 3)
+#' set_var <- matrix(rexp(6, rate = 0.5), nrow = 2, ncol = 3)
+#' rownames(set_mu) <- rownames(set_var) <- c("PATHWAY_A", "PATHWAY_B")
+#' 
+#' gene_sets <- list(
+#'   PATHWAY_A = c("GENE1", "GENE2", "GENE3", "GENE4", "GENE5"),
+#'   PATHWAY_B = c("GENE6", "GENE7", "GENE8", "GENE9", "GENE10")
+#' )
+#' 
+#' # Create concise gene sets (top 3 genes per set)
+#' concise <- gsemb_make_concise_gene_sets(
+#'   gene_emb, set_mu, set_var,
+#'   gene_sets = gene_sets,
+#'   top_n = 3,
+#'   restrict_to_members = TRUE,
+#'   score = "loglik"
+#' )
+#' str(concise)
 #' @export
 gsemb_make_concise_gene_sets <- function(gene_embedding,
                                        set_mu,

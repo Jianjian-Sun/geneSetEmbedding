@@ -10,6 +10,21 @@
 #' @param nodes Optional character vector of node IDs to keep/order.
 #'
 #' @return A sparse adjacency matrix of class \code{dgCMatrix}.
+#' @examples
+#' # Create a small edge list
+#' edges <- data.frame(
+#'   node1 = c("A", "B", "C", "A"),
+#'   node2 = c("B", "C", "A", "C"),
+#'   weight = c(1.0, 2.0, 0.5, 1.5)
+#' )
+#' 
+#' # Build undirected weighted graph
+#' adj <- gsemb_build_graph(edges, weight = "weight")
+#' adj
+#' 
+#' # Build directed unweighted graph
+#' adj_dir <- gsemb_build_graph(edges, directed = TRUE)
+#' adj_dir
 #' @export
 gsemb_build_graph <- function(edges,
                             node1 = "node1",
@@ -61,6 +76,21 @@ gsemb_build_graph <- function(edges,
 #' @param eps Small constant to avoid division by zero.
 #'
 #' @return A sparse transition matrix.
+#' @examples
+#' # Build a small adjacency matrix
+#' edges <- data.frame(
+#'   node1 = c("A", "B", "C"),
+#'   node2 = c("B", "C", "A")
+#' )
+#' adj <- gsemb_build_graph(edges)
+#' 
+#' # Column-normalized transition matrix
+#' Wcol <- gsemb_transition_matrix(adj, normalize = "col")
+#' Matrix::colSums(Wcol)
+#' 
+#' # Row-normalized transition matrix
+#' Wrow <- gsemb_transition_matrix(adj, normalize = "row")
+#' Matrix::rowSums(Wrow)
 #' @export
 gsemb_transition_matrix <- function(adj, normalize = c("col", "row"), eps = 1e-12) {
     normalize <- match.arg(normalize)
@@ -89,6 +119,21 @@ gsemb_transition_matrix <- function(adj, normalize = c("col", "row"), eps = 1e-1
 #' @param seed Random seed used when \code{method="random"}.
 #'
 #' @return A character vector of landmark node IDs.
+#' @examples
+#' # Build a small graph
+#' edges <- data.frame(
+#'   node1 = c("A", "B", "C", "D", "E"),
+#'   node2 = c("B", "C", "D", "E", "A")
+#' )
+#' adj <- gsemb_build_graph(edges)
+#' 
+#' # Select 2 landmarks by degree
+#' lm_deg <- gsemb_select_landmarks(adj, k = 2, method = "degree")
+#' lm_deg
+#' 
+#' # Select 2 landmarks randomly
+#' lm_rnd <- gsemb_select_landmarks(adj, k = 2, method = "random", seed = 42)
+#' lm_rnd
 #' @export
 gsemb_select_landmarks <- function(adj, k = 128, method = c("degree", "random"), seed = 1) {
     method <- match.arg(method)

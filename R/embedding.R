@@ -4,7 +4,7 @@
 #' either SVD (CPU) or a simple torch autoencoder.
 #'
 #' @param node_features Numeric matrix with nodes in rows and features in columns.
-#'   Row names must be node IDs.
+   Row names must be node IDs.
 #' @param dim Embedding dimension.
 #' @param method `"svd"` or `"torch_autoencoder"`.
 #' @param epochs Number of epochs for the torch autoencoder.
@@ -14,7 +14,25 @@
 #' @param device `"cpu"` or `"cuda"` (falls back to CPU if CUDA is unavailable).
 #'
 #' @return A list with components `embedding` (numeric matrix) and `method`.
-#'   When `method="torch_autoencoder"`, the fitted `model` is also returned.
+   When `method="torch_autoencoder"`, the fitted `model` is also returned.
+#' @examples
+#' # Simulate node features (e.g., diffusion profiles)
+#' set.seed(123)
+#' X <- matrix(rnorm(200), nrow = 20, ncol = 10)
+#' rownames(X) <- paste0("NODE", 1:20)
+#' 
+#' # Fit embedding using SVD (fast)
+#' fit_svd <- gsemb_fit_gene_embedding(X, dim = 5, method = "svd")
+#' dim(fit_svd$embedding)
+#' 
+#' # Fit embedding using torch autoencoder (requires torch)
+#' \dontrun{
+#' fit_torch <- gsemb_fit_gene_embedding(
+#'   X, dim = 5, method = "torch_autoencoder",
+#'   epochs = 10, lr = 1e-3, device = "cpu"
+#' )
+#' dim(fit_torch$embedding)
+#' }
 #' @export
 gsemb_fit_gene_embedding <- function(node_features,
                                    dim = 64,
@@ -96,6 +114,22 @@ gsemb_fit_gene_embedding <- function(node_features,
 #' @param eps Lower bound for variances; also used when a set has only one member.
 #'
 #' @return A list with `mu` and `var` matrices (sets in rows).
+#' @examples
+#' # Simulate a gene embedding
+#' set.seed(456)
+#' gene_emb <- matrix(rnorm(30), nrow = 10, ncol = 3)
+#' rownames(gene_emb) <- paste0("GENE", 1:10)
+#' 
+#' # Define two gene sets
+#' gene_sets <- list(
+#'   SET1 = c("GENE1", "GENE2", "GENE3"),
+#'   SET2 = c("GENE4", "GENE5", "GENE6", "GENE7")
+#' )
+#' 
+#' # Fit Gaussian parameters
+#' gauss <- gsemb_fit_set_gaussians_from_members(gene_emb, gene_sets)
+#' gauss$mu
+#' gauss$var
 #' @export
 gsemb_fit_set_gaussians_from_members <- function(gene_embedding,
                                                gene_sets,

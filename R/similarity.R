@@ -8,7 +8,21 @@
 #'
 #' @return A numeric matrix of cosine similarities. Row/column names are inherited from
 #'   the row names of the input embedding matrices.
-#'
+#' @examples
+#' # Create two random embedding matrices
+#' set.seed(42)
+#' X <- matrix(rnorm(20), nrow = 5, ncol = 4)
+#' rownames(X) <- paste0("GENE", 1:5)
+#' Y <- matrix(rnorm(12), nrow = 3, ncol = 4)
+#' rownames(Y) <- paste0("OTHER", 1:3)
+#' 
+#' # Compute cosine similarity within X
+#' sim1 <- gsemb_gene_cosine_similarity(X)
+#' dim(sim1)
+#' 
+#' # Compute cosine similarity between X and Y
+#' sim2 <- gsemb_gene_cosine_similarity(X, Y)
+#' dim(sim2)
 #' @export
 gsemb_gene_cosine_similarity <- function(gene_embedding, other = NULL, eps = 1e-12) {
     X <- as_numeric_matrix(gene_embedding)
@@ -41,7 +55,24 @@ gsemb_gene_cosine_similarity <- function(gene_embedding, other = NULL, eps = 1e-
 #' @param eps Numeric scalar lower bound for variances.
 #'
 #' @return A numeric matrix of pairwise distances.
-#'
+#' @examples
+#' # Create example Gaussian parameters
+#' set.seed(123)
+#' mu1 <- matrix(rnorm(6), nrow = 2, ncol = 3)
+#' var1 <- matrix(rexp(6, rate = 2), nrow = 2, ncol = 3)
+#' rownames(mu1) <- rownames(var1) <- c("SET_A", "SET_B")
+#' 
+#' mu2 <- matrix(rnorm(9), nrow = 3, ncol = 3)
+#' var2 <- matrix(rexp(9, rate = 2), nrow = 3, ncol = 3)
+#' rownames(mu2) <- rownames(var2) <- c("SET_X", "SET_Y", "SET_Z")
+#' 
+#' # Compute Wasserstein-2 distances between the two collections
+#' dist_w2 <- gsemb_set_gaussian_distance(mu1, var1, mu2, var2, metric = "w2")
+#' dim(dist_w2)
+#' 
+#' # Compute symmetric KL divergences
+#' dist_kl <- gsemb_set_gaussian_distance(mu1, var1, mu2, var2, metric = "sym_kl")
+#' dim(dist_kl)
 #' @export
 gsemb_set_gaussian_distance <- function(set_mu,
                                       set_var,
