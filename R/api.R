@@ -365,6 +365,39 @@ gsemb_concise_gene_sets <- function(x,
 #' @param ... Passed to `gsemb_fit`.
 #'
 #' @return A `gsemb_embedding` object.
+#' @examples
+#' \dontrun{
+#' # Simulate a small PPI edge list
+#' set.seed(42)
+#' nodes <- paste0("GENE", 1:50)
+#' edges <- data.frame(
+#'   node1 = sample(nodes, 200, replace = TRUE),
+#'   node2 = sample(nodes, 200, replace = TRUE),
+#'   weight = runif(200, 0.5, 1)
+#' )
+#' # Remove self-loops
+#' edges <- edges[edges$node1 != edges$node2, ]
+#' 
+#' # Simulate a few gene sets
+#' gene_sets <- list(
+#'   SET1 = sample(nodes, 10),
+#'   SET2 = sample(nodes, 8),
+#'   SET3 = sample(nodes, 12)
+#' )
+#' 
+#' # One-click training
+#' fit <- gsemb_train_embedding_from_ppi_and_genesets(
+#'   ppi_edges = edges,
+#'   gene_sets = gene_sets,
+#'   method = "svd",
+#'   dim = 16,
+#'   k = 20,
+#'   alpha = 0.5
+#' )
+#' 
+#' # Inspect the result
+#' print(fit)
+#' }
 #' @export
 gsemb_train_embedding_from_ppi_and_genesets <- function(ppi_edges,
                                                       gene_sets,
@@ -410,6 +443,21 @@ gsemb_calculate_all_similarities <- function(x,
 #' @param ... Passed to `gsemb_concise_gene_sets`.
 #'
 #' @return A named list of concise gene sets.
+#' @examples
+#' \dontrun{
+#' # Assuming you have a fitted gsemb_embedding object named 'fit'
+#' # (see example in gsemb_fit)
+#' # Define original gene sets
+#' orig_sets <- list(
+#'   PATH1 = c("GENE1", "GENE2", "GENE3", "GENE4", "GENE5"),
+#'   PATH2 = c("GENE3", "GENE4", "GENE6", "GENE7")
+#' )
+#' # Get concise versions using the wrapper
+#' concise <- gsemb_get_concise_gene_sets(fit, gene_sets = orig_sets, top_n = 3)
+#' 
+#' # View concise sets
+#' str(concise)
+#' }
 #' @export
 gsemb_get_concise_gene_sets <- function(x,
                                       gene_sets,
