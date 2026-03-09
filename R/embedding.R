@@ -4,7 +4,7 @@
 #' either SVD (CPU) or a simple torch autoencoder.
 #'
 #' @param node_features Numeric matrix with nodes in rows and features in columns.
-   Row names must be node IDs.
+#'   Row names must be node IDs.
 #' @param dim Embedding dimension.
 #' @param method `"svd"` or `"torch_autoencoder"`.
 #' @param epochs Number of epochs for the torch autoencoder.
@@ -14,7 +14,7 @@
 #' @param device `"cpu"` or `"cuda"` (falls back to CPU if CUDA is unavailable).
 #'
 #' @return A list with components `embedding` (numeric matrix) and `method`.
-   When `method="torch_autoencoder"`, the fitted `model` is also returned.
+#'   When `method="torch_autoencoder"`, the fitted `model` is also returned.
 #' @examples
 #' # Simulate node features (e.g., diffusion profiles)
 #' set.seed(123)
