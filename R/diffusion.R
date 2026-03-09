@@ -10,6 +10,24 @@
 #' @param max_iter Maximum number of iterations.
 #'
 #' @return A numeric vector of length \code{nrow(W)} that sums to 1.
+#' @examples
+#' # Create a simple transition matrix (3 nodes)
+#' W <- Matrix::sparseMatrix(
+#'   i = c(1, 2, 3, 1),
+#'   j = c(2, 3, 1, 3),
+#'   x = c(0.5, 0.5, 1, 0.5),
+#'   dims = c(3, 3)
+#' )
+#' # Normalize columns to make it stochastic
+#' W <- W %*% Matrix::Diagonal(x = 1 / Matrix::colSums(W))
+#' 
+#' # Seed concentrated on node 1
+#' seed_vec <- c(1, 0, 0)
+#' 
+#' # Run RWR with alpha = 0.5
+#' rwr_result <- gsemb_rwr(W, seed_vec, alpha = 0.5)
+#' sum(rwr_result)
+#' rwr_result
 #' @export
 gsemb_rwr <- function(W, seed, alpha = 0.5, tol = 1e-10, max_iter = 200) {
     if (!inherits(W, "Matrix")) stop("W must be a Matrix")
@@ -43,6 +61,25 @@ gsemb_rwr <- function(W, seed, alpha = 0.5, tol = 1e-10, max_iter = 200) {
 #' @param max_iter Maximum number of iterations.
 #'
 #' @return A numeric matrix with the same dimension as \code{S}, each column summing to 1.
+#' @examples
+#' # Use the same transition matrix as in gsemb_rwr example
+#' W <- Matrix::sparseMatrix(
+#'   i = c(1, 2, 3, 1),
+#'   j = c(2, 3, 1, 3),
+#'   x = c(0.5, 0.5, 1, 0.5),
+#'   dims = c(3, 3)
+#' )
+#' W <- W %*% Matrix::Diagonal(x = 1 / Matrix::colSums(W))
+#' 
+#' # Two seed vectors: one concentrated on node 1, another on node 2
+#' S <- matrix(c(1, 0, 0,
+#'               0, 1, 0),
+#'             nrow = 3, ncol = 2)
+#' 
+#' # Diffuse both seeds simultaneously
+#' P <- gsemb_diffuse_seeds(W, S, alpha = 0.5)
+#' colSums(P)
+#' P
 #' @export
 gsemb_diffuse_seeds <- function(W, S, alpha = 0.5, tol = 1e-10, max_iter = 200) {
     if (!inherits(W, "Matrix")) stop("W must be a Matrix")
@@ -83,6 +120,25 @@ gsemb_diffuse_seeds <- function(W, S, alpha = 0.5, tol = 1e-10, max_iter = 200) 
 #' @param seed Random seed for landmark selection.
 #'
 #' @return A numeric matrix of size \code{n_nodes x n_landmarks}.
+#' @examples
+#' # Create a small adjacency matrix
+#' adj <- Matrix::sparseMatrix(
+#'   i = c(1, 2, 3, 1, 2),
+#'   j = c(2, 3, 1, 3, 1),
+#'   x = 1,
+#'   dims = c(3, 3)
+#' )
+#' rownames(adj) <- c("A", "B", "C")
+#' 
+#' # Compute node diffusion features using degree-based landmarks
+#' features <- gsemb_compute_node_landmark_features(
+#'   adj,
+#'   k = 2,
+#'   alpha = 0.5,
+#'   normalize = "col"
+#' )
+#' dim(features)
+#' features
 #' @export
 gsemb_compute_node_landmark_features <- function(adj,
                                                landmarks = NULL,
@@ -125,6 +181,35 @@ gsemb_compute_node_landmark_features <- function(adj,
 #' @param batch_size Number of gene sets to process per batch.
 #'
 #' @return A numeric matrix of size \code{n_sets x n_landmarks}.
+#' @examples
+#' # Use the same adjacency matrix as before
+#' adj <- Matrix::sparseMatrix(
+#'   i = c(1, 2, 3, 1, 2),
+#'   j = c(2, 3, 1, 3, 1),
+#'   x = 1,
+#'   dims = c(3, 3)
+#' )
+#' rownames(adj) <- c("A", "B", "C")
+#' 
+#' # Define two gene sets
+#' gene_sets <- list(
+#'   SET1 = c("A", "B"),
+#'   SET2 = c("B", "C")
+#' )
+#' 
+#' # Landmarks are all nodes
+#' landmarks <- c("A", "B", "C")
+#' 
+#' # Compute set diffusion features
+#' set_features <- gsemb_compute_set_landmark_features(
+#'   adj,
+#'   gene_sets,
+#'   landmarks,
+#'   alpha = 0.5,
+#'   normalize = "col"
+#' )
+#' dim(set_features)
+#' set_features
 #' @export
 gsemb_compute_set_landmark_features <- function(adj,
                                               gene_sets,
