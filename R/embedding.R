@@ -80,7 +80,7 @@ gsemb_fit_gene_embedding <- function(node_features,
         }
     }
 
-    z <- model(X_tensor)$z$to(device = torch::torch_device("cpu"))$detach()$to(dtype = torch::torch_double())
+    z <- model(X_tensor)$z$to(device = dev)$detach()$to(dtype = torch::torch_double())
     emb <- as.matrix(z)
     rownames(emb) <- rownames(X)
     colnames(emb) <- paste0("V", seq_len(dim))
