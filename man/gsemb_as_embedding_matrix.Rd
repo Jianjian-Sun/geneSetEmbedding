@@ -17,3 +17,15 @@ A numeric matrix.
 \description{
 Coerce an embedding object to a numeric matrix
 }
+\examples{
+# Create a data.frame with an ID column
+df <- data.frame(
+  gene = paste0("GENE", 1:10),
+  dim1 = rnorm(10),
+  dim2 = rnorm(10)
+)
+# Convert to numeric matrix using the 'gene' column as row names
+mat <- gsemb_as_embedding_matrix(df, id_col = "gene")
+dim(mat)
+rownames(mat)
+}

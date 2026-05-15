@@ -19,3 +19,16 @@ A list with `gene_gene`, `set_set_w2`, and `set_set_kl`.
 \description{
 Compute all default similarity matrices from a fitted embedding
 }
+\examples{
+\dontrun{
+# Assuming you have a fitted gsemb_embedding object named 'fit'
+# (see example in gsemb_fit)
+# Compute all similarity matrices
+all_sims <- gsemb_calculate_all_similarities(fit)
+
+# Access individual matrices
+gene_gene_sim <- all_sims$gene_gene
+set_set_w2 <- all_sims$set_set_w2
+set_set_kl <- all_sims$set_set_kl
+}
+}

@@ -19,3 +19,37 @@ A `gsemb_embedding` object.
 \description{
 One-click training from PPI edges and gene sets
 }
+\examples{
+\dontrun{
+# Simulate a small PPI edge list
+set.seed(42)
+nodes <- paste0("GENE", 1:50)
+edges <- data.frame(
+  node1 = sample(nodes, 200, replace = TRUE),
+  node2 = sample(nodes, 200, replace = TRUE),
+  weight = runif(200, 0.5, 1)
+)
+# Remove self-loops
+edges <- edges[edges$node1 != edges$node2, ]
+
+# Simulate a few gene sets
+gene_sets <- list(
+  SET1 = sample(nodes, 10),
+  SET2 = sample(nodes, 8),
+  SET3 = sample(nodes, 12)
+)
+
+# One-click training
+fit <- gsemb_train_embedding_from_ppi_and_genesets(
+  ppi_edges = edges,
+  gene_sets = gene_sets,
+  method = "svd",
+  dim = 16,
+  k = 20,
+  alpha = 0.5
+)
+
+# Inspect the result
+print(fit)
+}
+}

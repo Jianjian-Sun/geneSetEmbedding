@@ -19,3 +19,19 @@ A cosine similarity matrix.
 \description{
 Compatibility wrapper for cosine similarity.
 }
+\examples{
+# Create two random embedding matrices
+set.seed(42)
+X <- matrix(rnorm(20), nrow = 5, ncol = 4)
+rownames(X) <- paste0("ROW", 1:5)
+Y <- matrix(rnorm(12), nrow = 3, ncol = 4)
+rownames(Y) <- paste0("OTHER", 1:3)
+
+# Compute cosine similarity within X
+sim1 <- gsemb_row_cosine_similarity(X)
+dim(sim1)
+
+# Compute cosine similarity between X and Y
+sim2 <- gsemb_row_cosine_similarity(X, Y)
+dim(sim2)
+}

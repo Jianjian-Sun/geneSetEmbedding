@@ -93,7 +93,7 @@ gsemb_diffuse_seeds <- function(W, S, alpha = 0.5, tol = 1e-10, max_iter = 200) 
     for (i in seq_len(max_iter)) {
         P_new <- (1 - alpha) * (W %*% P) + alpha * S
         P_new <- as.matrix(P_new)
-        if (sum(abs(P_new - P)) < tol * ncol(P)) {
+        if (sum(abs(P_new - P)) < tol) {
             P <- P_new
             break
         }

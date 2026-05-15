@@ -1,3 +1,8 @@
+.rcpp_available <- function() {
+    requireNamespace("Rcpp", quietly = TRUE) &&
+    requireNamespace("RcppArmadillo", quietly = TRUE)
+}
+
 #' Compute cosine similarity between gene embeddings
 #'
 #' @param gene_embedding Numeric matrix with genes in rows and embedding dimensions in columns.
@@ -15,11 +20,11 @@
 #' rownames(X) <- paste0("GENE", 1:5)
 #' Y <- matrix(rnorm(12), nrow = 3, ncol = 4)
 #' rownames(Y) <- paste0("OTHER", 1:3)
-#' 
+#'
 #' # Compute cosine similarity within X
 #' sim1 <- gsemb_gene_cosine_similarity(X)
 #' dim(sim1)
-#' 
+#'
 #' # Compute cosine similarity between X and Y
 #' sim2 <- gsemb_gene_cosine_similarity(X, Y)
 #' dim(sim2)
@@ -61,15 +66,15 @@ gsemb_gene_cosine_similarity <- function(gene_embedding, other = NULL, eps = 1e-
 #' mu1 <- matrix(rnorm(6), nrow = 2, ncol = 3)
 #' var1 <- matrix(rexp(6, rate = 2), nrow = 2, ncol = 3)
 #' rownames(mu1) <- rownames(var1) <- c("SET_A", "SET_B")
-#' 
+#'
 #' mu2 <- matrix(rnorm(9), nrow = 3, ncol = 3)
 #' var2 <- matrix(rexp(9, rate = 2), nrow = 3, ncol = 3)
 #' rownames(mu2) <- rownames(var2) <- c("SET_X", "SET_Y", "SET_Z")
-#' 
+#'
 #' # Compute Wasserstein-2 distances between the two collections
 #' dist_w2 <- gsemb_set_gaussian_distance(mu1, var1, mu2, var2, metric = "w2")
 #' dim(dist_w2)
-#' 
+#'
 #' # Compute symmetric KL divergences
 #' dist_kl <- gsemb_set_gaussian_distance(mu1, var1, mu2, var2, metric = "sym_kl")
 #' dim(dist_kl)
@@ -94,22 +99,47 @@ gsemb_set_gaussian_distance <- function(set_mu,
     if (!all(dim(mu2) == dim(var2))) stop("other_mu and other_var must have identical dimensions")
     if (ncol(mu) != ncol(mu2)) stop("mu and other_mu must have same number of columns")
 
-    var <- pmax(var, eps)
+    var  <- pmax(var,  eps)
     var2 <- pmax(var2, eps)
 
-    out <- matrix(0, nrow(mu), nrow(mu2))
-    for (i in seq_len(nrow(mu))) {
-        for (j in seq_len(nrow(mu2))) {
-            dmu <- mu[i, ] - mu2[j, ]
-            if (metric == "w2") {
-                out[i, j] <- sum(dmu * dmu) + sum((sqrt(var[i, ]) - sqrt(var2[j, ]))^2)
-            } else {
-                kl01 <- 0.5 * (sum(log(var2[j, ] / var[i, ])) - ncol(mu) + sum(var[i, ] / var2[j, ]) + sum((dmu * dmu) / var2[j, ]))
-                kl10 <- 0.5 * (sum(log(var[i, ] / var2[j, ])) - ncol(mu) + sum(var2[j, ] / var[i, ]) + sum((dmu * dmu) / var[i, ]))
-                out[i, j] <- 0.5 * (kl01 + kl10)
-            }
+    if (.rcpp_available()) {
+        cpp_out <- if (metric == "w2") {
+            w2_distance(mu, var, mu2, var2)
+        } else {
+            sym_kl_distance(mu, var, mu2, var2)
         }
+        rownames(cpp_out) <- rownames(mu)
+        colnames(cpp_out) <- rownames(mu2)
+        return(cpp_out)
     }
+
+    # Fallback: pure-R vectorized implementation
+    if (metric == "w2") {
+        mu_sq  <- rowSums(mu  * mu)
+        mu2_sq <- rowSums(mu2 * mu2)
+        dmu2 <- mu_sq + outer(mu2_sq, mu_sq, "+") - 2 * mu %*% t(mu2)
+        sv  <- sqrt(var)
+        sv2 <- sqrt(var2)
+        var_term <- rowSums(sv * sv) + outer(rowSums(sv2 * sv2), rep(1, nrow(mu)), "+") - 2 * sv %*% t(sv2)
+        out <- dmu2 + var_term
+    } else {
+        inv_var  <- 1 / var
+        inv_var2 <- 1 / var2
+        ratio_mat  <- var  %*% t(inv_var2)
+        ratio_mat2 <- var2 %*% t(inv_var)
+        mahal_ij <- (
+            t(t(rowSums(mu  * mu))  %*% t(inv_var2)) +
+            t(t(rowSums(mu2 * mu2)) %*% t(inv_var2)) -
+            2 * mu %*% (t(inv_var2) %*% mu2)
+        )
+        mahal_ji <- (
+            t(t(rowSums(mu2 * mu2)) %*% t(inv_var)) +
+            t(t(rowSums(mu  * mu))  %*% t(inv_var)) -
+            2 * mu2 %*% (t(inv_var) %*% mu)
+        )
+        out <- 0.5 * (ratio_mat + t(ratio_mat2) + mahal_ij + mahal_ji)
+    }
+
     rownames(out) <- rownames(mu)
     colnames(out) <- rownames(mu2)
     out

@@ -19,3 +19,20 @@ A list with `mu` and `var` matrices (sets in rows).
 \description{
 Compute mean and diagonal variance of member gene embeddings for each set.
 }
+\examples{
+# Simulate a gene embedding
+set.seed(456)
+gene_emb <- matrix(rnorm(30), nrow = 10, ncol = 3)
+rownames(gene_emb) <- paste0("GENE", 1:10)
+
+# Define two gene sets
+gene_sets <- list(
+  SET1 = c("GENE1", "GENE2", "GENE3"),
+  SET2 = c("GENE4", "GENE5", "GENE6", "GENE7")
+)
+
+# Fit Gaussian parameters
+gauss <- gsemb_fit_set_gaussians_from_members(gene_emb, gene_sets)
+gauss$mu
+gauss$var
+}

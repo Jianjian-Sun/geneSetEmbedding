@@ -567,31 +567,39 @@ gsemb_embedding_enrichment <- function(gene_stats,
         eps = eps
     )
     S <- as.matrix(S)
-    S <- sweep(S, 2, apply(S, 2, max), FUN = "-")
-    W <- exp(S / temperature)
-    W <- sweep(W, 2, colSums(W), FUN = "/")
-    W[!is.finite(W)] <- 0
+    col_max <- apply(S, 2, max)
+    S <- S - rep(col_max, each = nrow(S))
+    exp_S <- exp(S / temperature)
+    col_sum <- colSums(exp_S)
+    exp_S <- exp_S / rep(col_sum, each = nrow(exp_S))
+    exp_S[!is.finite(exp_S)] <- 0
+    W <- exp_S
 
     es <- as.numeric(crossprod(W, gene_stats))
     names(es) <- colnames(W)
 
-    null_mean <- rep(NA_real_, length(es))
-    null_sd <- rep(NA_real_, length(es))
-    pvals <- rep(NA_real_, length(es))
-    names(null_mean) <- names(es)
+    n_es <- length(es)
+    z <- rep(NA_real_, n_es)
+    null_sd <- rep(eps, n_es)
+    pvals <- rep(NA_real_, n_es)
+    names(z) <- names(es)
     names(null_sd) <- names(es)
     names(pvals) <- names(es)
 
     if (nperm > 0) {
-        set.seed(seed)
-        null_scores <- matrix(0, nperm, length(es))
-        for (b in seq_len(nperm)) {
-            perm_stats <- sample(gene_stats, length(gene_stats), replace = FALSE)
-            null_scores[b, ] <- as.numeric(crossprod(W, perm_stats))
+        if (requireNamespace("RcppArmadillo", quietly = TRUE)) {
+            null_scores <- rcpp_enrichment_permutations(W, gene_stats, nperm, seed)
+        } else {
+            set.seed(seed)
+            null_scores <- matrix(0, nperm, n_es)
+            for (b in seq_len(nperm)) {
+                perm_stats <- sample(gene_stats, length(gene_stats), replace = FALSE)
+                null_scores[b, ] <- as.numeric(crossprod(W, perm_stats))
+            }
         }
         null_mean <- colMeans(null_scores)
-        null_sd <- apply(null_scores, 2, stats::sd)
-        null_sd <- pmax(null_sd, eps)
+        col_sd <- apply(null_scores, 2, stats::sd)
+        null_sd <- pmax(col_sd, eps)
         z <- (es - null_mean) / null_sd
 
         if (alternative == "greater") {
@@ -603,8 +611,6 @@ gsemb_embedding_enrichment <- function(gene_stats,
             pvals <- colMeans(abs(t(t(null_scores) - cen)) >= abs(es - cen))
         }
         pvals <- pmax(pvals, 1 / nperm)
-    } else {
-        z <- rep(NA_real_, length(es))
     }
 
     padj <- stats::p.adjust(pvals, method = "BH")

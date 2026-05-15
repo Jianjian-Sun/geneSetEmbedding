@@ -1,0 +1,7 @@
+.aider*
+gmon.out
+
+# Compiled C++ (keep source, ignore build artifacts)
+src/*.o
+src/*.so
+src/*.dylib

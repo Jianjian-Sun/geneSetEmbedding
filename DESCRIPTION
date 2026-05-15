@@ -10,6 +10,8 @@ Depends:
     R (>= 4.1.0)
 Imports:
     Matrix,
+    Rcpp,
+    RcppArmadillo,
     stats
 Suggests:
     torch,

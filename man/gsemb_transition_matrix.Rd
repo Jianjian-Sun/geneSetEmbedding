@@ -20,3 +20,19 @@ A sparse transition matrix.
 Normalize an adjacency matrix into a transition matrix by column- or
 row-normalization.
 }
+\examples{
+# Build a small adjacency matrix
+edges <- data.frame(
+  node1 = c("A", "B", "C"),
+  node2 = c("B", "C", "A")
+)
+adj <- gsemb_build_graph(edges)
+
+# Column-normalized transition matrix
+Wcol <- gsemb_transition_matrix(adj, normalize = "col")
+Matrix::colSums(Wcol)
+
+# Row-normalized transition matrix
+Wrow <- gsemb_transition_matrix(adj, normalize = "row")
+Matrix::rowSums(Wrow)
+}

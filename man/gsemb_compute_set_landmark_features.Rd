@@ -39,3 +39,33 @@ A numeric matrix of size \code{n_sets x n_landmarks}.
 For each gene set, diffuse from its member genes and extract the diffusion
 mass on the provided landmark nodes.
 }
+\examples{
+# Use the same adjacency matrix as before
+adj <- Matrix::sparseMatrix(
+  i = c(1, 2, 3, 1, 2),
+  j = c(2, 3, 1, 3, 1),
+  x = 1,
+  dims = c(3, 3)
+)
+rownames(adj) <- c("A", "B", "C")
+
+# Define two gene sets
+gene_sets <- list(
+  SET1 = c("A", "B"),
+  SET2 = c("B", "C")
+)
+
+# Landmarks are all nodes
+landmarks <- c("A", "B", "C")
+
+# Compute set diffusion features
+set_features <- gsemb_compute_set_landmark_features(
+  adj,
+  gene_sets,
+  landmarks,
+  alpha = 0.5,
+  normalize = "col"
+)
+dim(set_features)
+set_features
+}

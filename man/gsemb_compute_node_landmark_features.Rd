@@ -42,3 +42,23 @@ A numeric matrix of size \code{n_nodes x n_landmarks}.
 For each landmark node, run diffusion with a one-hot seed and collect the
 stationary distributions as node features.
 }
+\examples{
+# Create a small adjacency matrix
+adj <- Matrix::sparseMatrix(
+  i = c(1, 2, 3, 1, 2),
+  j = c(2, 3, 1, 3, 1),
+  x = 1,
+  dims = c(3, 3)
+)
+rownames(adj) <- c("A", "B", "C")
+
+# Compute node diffusion features using degree-based landmarks
+features <- gsemb_compute_node_landmark_features(
+  adj,
+  k = 2,
+  alpha = 0.5,
+  normalize = "col"
+)
+dim(features)
+features
+}

@@ -31,3 +31,19 @@ A sparse adjacency matrix of class \code{dgCMatrix}.
 Construct a sparse adjacency matrix from an edge list. Node names are stored
 in the matrix dimnames and are used throughout the package.
 }
+\examples{
+# Create a small edge list
+edges <- data.frame(
+  node1 = c("A", "B", "C", "A"),
+  node2 = c("B", "C", "A", "C"),
+  weight = c(1.0, 2.0, 0.5, 1.5)
+)
+
+# Build undirected weighted graph
+adj <- gsemb_build_graph(edges, weight = "weight")
+adj
+
+# Build directed unweighted graph
+adj_dir <- gsemb_build_graph(edges, directed = TRUE)
+adj_dir
+}

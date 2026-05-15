@@ -19,3 +19,19 @@ A named list of concise gene sets.
 \description{
 Create concise gene sets (high-level wrapper)
 }
+\examples{
+\dontrun{
+# Assuming you have a fitted gsemb_embedding object named 'fit'
+# (see example in gsemb_fit)
+# Define original gene sets
+orig_sets <- list(
+  PATH1 = c("GENE1", "GENE2", "GENE3", "GENE4", "GENE5"),
+  PATH2 = c("GENE3", "GENE4", "GENE6", "GENE7")
+)
+# Get concise versions using the wrapper
+concise <- gsemb_get_concise_gene_sets(fit, gene_sets = orig_sets, top_n = 3)
+
+# View concise sets
+str(concise)
+}
+}

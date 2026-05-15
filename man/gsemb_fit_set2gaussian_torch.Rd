@@ -63,3 +63,37 @@ A list with `gene_embedding`, `set_mu`, `set_var`, `landmarks`, and `losses`.
 Learn a gene embedding (points) and gene set embeddings (diagonal Gaussians)
 by matching diffusion distributions from landmarks and gene sets.
 }
+\examples{
+\dontrun{
+# Simulate a small adjacency matrix and gene sets
+set.seed(42)
+nodes <- paste0("GENE", 1:30)
+edges <- data.frame(
+  node1 = sample(nodes, 100, replace = TRUE),
+  node2 = sample(nodes, 100, replace = TRUE)
+)
+adj <- gsemb_build_graph(edges)
+
+gene_sets <- list(
+  SET1 = sample(nodes, 10),
+  SET2 = sample(nodes, 8)
+)
+
+# Fit Set2Gaussian model (requires torch)
+fit <- gsemb_fit_set2gaussian_torch(
+  adj,
+  gene_sets,
+  k = 10,
+  dim = 16,
+  alpha = 0.5,
+  epochs = 5,
+  lr = 5e-3,
+  batch_size = 4,
+  device = "cpu"
+)
+
+# Inspect results
+dim(fit$gene_embedding)
+dim(fit$set_mu)
+}
+}

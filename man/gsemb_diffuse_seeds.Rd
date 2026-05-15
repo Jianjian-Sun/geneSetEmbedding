@@ -23,3 +23,23 @@ A numeric matrix with the same dimension as \code{S}, each column summing to 1.
 \description{
 Vectorized RWR for a seed matrix where each column is a seed distribution.
 }
+\examples{
+# Use the same transition matrix as in gsemb_rwr example
+W <- Matrix::sparseMatrix(
+  i = c(1, 2, 3, 1),
+  j = c(2, 3, 1, 3),
+  x = c(0.5, 0.5, 1, 0.5),
+  dims = c(3, 3)
+)
+W <- W \%*\% Matrix::Diagonal(x = 1 / Matrix::colSums(W))
+
+# Two seed vectors: one concentrated on node 1, another on node 2
+S <- matrix(c(1, 0, 0,
+              0, 1, 0),
+            nrow = 3, ncol = 2)
+
+# Diffuse both seeds simultaneously
+P <- gsemb_diffuse_seeds(W, S, alpha = 0.5)
+colSums(P)
+P
+}

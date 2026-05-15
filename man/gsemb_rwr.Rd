@@ -24,3 +24,22 @@ A numeric vector of length \code{nrow(W)} that sums to 1.
 Compute a stationary diffusion distribution from a seed vector on a graph
 transition matrix.
 }
+\examples{
+# Create a simple transition matrix (3 nodes)
+W <- Matrix::sparseMatrix(
+  i = c(1, 2, 3, 1),
+  j = c(2, 3, 1, 3),
+  x = c(0.5, 0.5, 1, 0.5),
+  dims = c(3, 3)
+)
+# Normalize columns to make it stochastic
+W <- W \%*\% Matrix::Diagonal(x = 1 / Matrix::colSums(W))
+
+# Seed concentrated on node 1
+seed_vec <- c(1, 0, 0)
+
+# Run RWR with alpha = 0.5
+rwr_result <- gsemb_rwr(W, seed_vec, alpha = 0.5)
+sum(rwr_result)
+rwr_result
+}

@@ -29,3 +29,25 @@ A numeric matrix of scores.
 \description{
 Compatibility wrapper for `gsemb_gene_to_set_score`.
 }
+\examples{
+# Simulate a small gene embedding and set parameters
+set.seed(456)
+gene_emb <- matrix(rnorm(15), nrow = 5, ncol = 3)
+rownames(gene_emb) <- paste0("GENE", 1:5)
+
+set_mu <- matrix(rnorm(6), nrow = 2, ncol = 3)
+set_var <- matrix(rexp(6, rate = 1), nrow = 2, ncol = 3)
+rownames(set_mu) <- rownames(set_var) <- c("PATH1", "PATH2")
+
+# Compute log-likelihood scores
+scores_loglik <- gsemb_gene_to_diag_gaussian_score(
+  gene_emb, set_mu, set_var, score = "loglik"
+)
+dim(scores_loglik)
+
+# Compute negative Mahalanobis distance scores
+scores_negmah <- gsemb_gene_to_diag_gaussian_score(
+  gene_emb, set_mu, set_var, score = "neg_mahalanobis"
+)
+dim(scores_negmah)
+}

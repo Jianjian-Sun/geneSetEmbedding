@@ -1,0 +1,5 @@
+RCPP_INC = -I$(R_HOME)/library/Rcpp/include
+ARMA_INC = -I$(R_HOME)/library/RcppArmadillo/include
+PKG_CPPFLAGS = $(RCPP_INC) $(ARMA_INC)
+PKG_CXXFLAGS = -fopenmp
+PKG_LIBS = -fopenmp -lgomp

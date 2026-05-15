@@ -21,3 +21,19 @@ A character vector of landmark node IDs.
 \description{
 Choose landmark nodes either by degree (highest first) or random sampling.
 }
+\examples{
+# Build a small graph
+edges <- data.frame(
+  node1 = c("A", "B", "C", "D", "E"),
+  node2 = c("B", "C", "D", "E", "A")
+)
+adj <- gsemb_build_graph(edges)
+
+# Select 2 landmarks by degree
+lm_deg <- gsemb_select_landmarks(adj, k = 2, method = "degree")
+lm_deg
+
+# Select 2 landmarks randomly
+lm_rnd <- gsemb_select_landmarks(adj, k = 2, method = "random", seed = 42)
+lm_rnd
+}

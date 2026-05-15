@@ -46,16 +46,30 @@ gsemb_gene_to_set_score <- function(gene_embedding,
     if (ncol(E) != ncol(mu)) stop("gene_embedding and set_mu must have the same number of columns")
     var <- pmax(var, eps)
 
-    out <- matrix(0, nrow(E), nrow(mu))
-    for (j in seq_len(nrow(mu))) {
-        d <- sweep(E, 2, mu[j, ], FUN = "-")
-        md2 <- rowSums((d * d) / matrix(var[j, ], nrow = nrow(d), ncol = ncol(d), byrow = TRUE))
-        if (score == "neg_mahalanobis") {
-            out[, j] <- -md2
-        } else {
-            logdet <- sum(log(var[j, ]))
-            out[, j] <- -0.5 * (md2 + logdet)
-        }
+    inv_var <- 1 / var  # n_s x d
+
+    # Tile gene matrix (n_g x d) so each row of E is repeated n_s times:
+    # E_tiled: (n_g * n_s) x d  [row order: set1_gene1, set1_gene2, ..., set2_gene1, ...]
+    E_tiled <- E[rep(seq_len(nrow(E)), each = nrow(mu)), , drop = FALSE]
+    # Tile mu (n_s x d) so each set mean is repeated n_g times, same block order:
+    # mu_tiled: (n_g * n_s) x d
+    mu_tiled <- mu[rep(seq_len(nrow(mu)), times = nrow(E)), , drop = FALSE]
+    # Tile inv_var (n_s x d) the same way:
+    inv_var_tiled <- inv_var[rep(seq_len(nrow(mu)), times = nrow(E)), , drop = FALSE]
+
+    # Squared differences weighted by inverse variance: (n_g * n_s) x d
+    diff_sq <- (E_tiled - mu_tiled)^2 * inv_var_tiled
+    # Sum over dimensions -> weighted Mahalanobis distances: (n_g * n_s)
+    md2 <- rowSums(diff_sq)
+
+    # Reshape back to n_g x n_s matrix
+    out <- matrix(md2, nrow = nrow(E), ncol = nrow(mu), byrow = TRUE)
+
+    if (score == "neg_mahalanobis") {
+        out <- -out
+    } else {
+        logdet <- rowSums(log(var))          # n_s
+        out <- -0.5 * (out + rep(logdet, each = nrow(E)))
     }
     rownames(out) <- rownames(E)
     colnames(out) <- rownames(mu)
@@ -143,6 +157,13 @@ gsemb_make_concise_gene_sets <- function(gene_embedding,
     set_ids <- rownames(mu)
     concise <- vector("list", length(set_ids))
     names(concise) <- set_ids
+
+    if (restrict_to_members && !is.null(gene_sets)) {
+        # All sets share the same candidate pool per set -> compute all at once
+        # to leverage the vectorized matrix product.
+        all_scores <- gsemb_gene_to_set_score(E, mu, var, score = score, eps = eps)
+    }
+
     for (sid in set_ids) {
         if (restrict_to_members) {
             if (!sid %in% names(gene_sets)) next
@@ -151,7 +172,11 @@ gsemb_make_concise_gene_sets <- function(gene_embedding,
             candidates <- rownames(E)
         }
         if (length(candidates) == 0) next
-        s <- gsemb_gene_to_set_score(E[candidates, , drop = FALSE], mu[sid, , drop = FALSE], var[sid, , drop = FALSE], score = score, eps = eps)[, 1]
+        s <- if (restrict_to_members && !is.null(gene_sets)) {
+            all_scores[candidates, sid]
+        } else {
+            gsemb_gene_to_set_score(E[candidates, , drop = FALSE], mu[sid, , drop = FALSE], var[sid, , drop = FALSE], score = score, eps = eps)[, 1]
+        }
         ord <- order(s, decreasing = TRUE)
         candidates <- candidates[ord]
         s_sorted <- s[ord]

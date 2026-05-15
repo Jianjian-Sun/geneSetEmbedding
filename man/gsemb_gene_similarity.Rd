@@ -21,3 +21,13 @@ A numeric similarity matrix.
 \description{
 Compute gene-gene cosine similarities
 }
+\examples{
+\dontrun{
+# Assuming you have a fitted gsemb_embedding object named 'fit'
+# (see example in gsemb_fit)
+sim_all <- gsemb_gene_similarity(fit)
+
+# Compute similarities for a subset of genes
+sim_sub <- gsemb_gene_similarity(fit, genes = c("GENE1", "GENE2", "GENE3"))
+}
+}

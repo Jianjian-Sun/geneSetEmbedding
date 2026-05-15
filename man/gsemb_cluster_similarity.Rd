@@ -33,3 +33,28 @@ A numeric distance matrix (clusters x other_clusters).
 Gene clusters are represented as diagonal Gaussians fitted from member genes
 in the learned gene embedding.
 }
+\examples{
+\dontrun{
+# Assuming you have a fitted gsemb_embedding object named 'fit'
+# (see example in gsemb_fit)
+# Define some custom clusters
+clusters <- list(
+  CLUST1 = c("GENE1", "GENE2", "GENE3"),
+  CLUST2 = c("GENE4", "GENE5", "GENE6")
+)
+# Compute distances between these clusters
+dist_mat <- gsemb_cluster_similarity(fit, clusters = clusters, metric = "w2")
+
+# Compute distances between two different cluster lists
+other_clusters <- list(
+  OTHER1 = c("GENE10", "GENE11"),
+  OTHER2 = c("GENE12", "GENE13", "GENE14")
+)
+dist_mat2 <- gsemb_cluster_similarity(
+  fit,
+  clusters = clusters,
+  other_clusters = other_clusters,
+  metric = "sym_kl"
+)
+}
+}

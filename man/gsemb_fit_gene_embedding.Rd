@@ -41,3 +41,22 @@ A list with components `embedding` (numeric matrix) and `method`.
 Reduce node diffusion feature vectors into a lower-dimensional embedding using
 either SVD (CPU) or a simple torch autoencoder.
 }
+\examples{
+# Simulate node features (e.g., diffusion profiles)
+set.seed(123)
+X <- matrix(rnorm(200), nrow = 20, ncol = 10)
+rownames(X) <- paste0("NODE", 1:20)
+
+# Fit embedding using SVD (fast)
+fit_svd <- gsemb_fit_gene_embedding(X, dim = 5, method = "svd")
+dim(fit_svd$embedding)
+
+# Fit embedding using torch autoencoder (requires torch)
+\dontrun{
+fit_torch <- gsemb_fit_gene_embedding(
+  X, dim = 5, method = "torch_autoencoder",
+  epochs = 10, lr = 1e-3, device = "cpu"
+)
+dim(fit_torch$embedding)
+}
+}

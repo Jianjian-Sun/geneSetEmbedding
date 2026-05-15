@@ -23,3 +23,18 @@ A distance matrix.
 \description{
 Compatibility wrapper for diagonal Gaussian distance with `metric="sym_kl"`.
 }
+\examples{
+# Use the same example data as in gsemb_diag_gaussian_w2
+set.seed(123)
+mu1 <- matrix(rnorm(6), nrow = 2, ncol = 3)
+var1 <- matrix(rexp(6, rate = 2), nrow = 2, ncol = 3)
+rownames(mu1) <- rownames(var1) <- c("SET_A", "SET_B")
+
+mu2 <- matrix(rnorm(9), nrow = 3, ncol = 3)
+var2 <- matrix(rexp(9, rate = 2), nrow = 3, ncol = 3)
+rownames(mu2) <- rownames(var2) <- c("SET_X", "SET_Y", "SET_Z")
+
+# Compute symmetric KL divergences
+dist_kl <- gsemb_diag_gaussian_sym_kl(mu1, var1, mu2, var2)
+dim(dist_kl)
+}

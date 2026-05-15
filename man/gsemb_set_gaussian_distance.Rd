@@ -33,3 +33,22 @@ A numeric matrix of pairwise distances.
 \description{
 Compute pairwise distances between diagonal Gaussian set embeddings
 }
+\examples{
+# Create example Gaussian parameters
+set.seed(123)
+mu1 <- matrix(rnorm(6), nrow = 2, ncol = 3)
+var1 <- matrix(rexp(6, rate = 2), nrow = 2, ncol = 3)
+rownames(mu1) <- rownames(var1) <- c("SET_A", "SET_B")
+
+mu2 <- matrix(rnorm(9), nrow = 3, ncol = 3)
+var2 <- matrix(rexp(9, rate = 2), nrow = 3, ncol = 3)
+rownames(mu2) <- rownames(var2) <- c("SET_X", "SET_Y", "SET_Z")
+
+# Compute Wasserstein-2 distances between the two collections
+dist_w2 <- gsemb_set_gaussian_distance(mu1, var1, mu2, var2, metric = "w2")
+dim(dist_w2)
+
+# Compute symmetric KL divergences
+dist_kl <- gsemb_set_gaussian_distance(mu1, var1, mu2, var2, metric = "sym_kl")
+dim(dist_kl)
+}

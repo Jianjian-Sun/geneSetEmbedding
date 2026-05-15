@@ -29,3 +29,18 @@ A numeric distance matrix.
 \description{
 Compute set-set distances between Gaussian embeddings
 }
+\examples{
+\dontrun{
+# Assuming you have a fitted gsemb_embedding object named 'fit'
+# (see example in gsemb_fit)
+# Compute Wasserstein-2 distances between all gene sets
+dist_w2 <- gsemb_set_similarity(fit, metric = "w2")
+
+# Compute symmetric KL divergences for a subset of sets
+dist_kl <- gsemb_set_similarity(
+  fit,
+  sets = c("SET1", "SET2"),
+  metric = "sym_kl"
+)
+}
+}

@@ -3,6 +3,9 @@ library(geneSetEmbedding)
 
 test_that("gsemb_fit_set2gaussian_torch runs when torch is available", {
     skip_if_not_installed("torch")
+    # Lantern (libtorch) may be installed but not loaded in some environments
+    skip_if(!isTRUE(tryCatch(torch::cuda_is_available(), error = function(e) FALSE)),
+            "torch lantern not loaded")
 
     edges <- data.frame(
         node1 = c("A", "A", "B", "C", "D"),
