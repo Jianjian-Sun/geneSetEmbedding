@@ -3,8 +3,6 @@
 
 #' Diagonal 2-Wasserstein distance (fully vectorized via BLAS)
 #'
-#' out[i,j] = ||mu[i] - mu2[j]||^2 + ||sqrt(var[i]) - sqrt(var2[j])||^2
-#'
 #' @param mu   n1 x d matrix of means
 #' @param var  n1 x d matrix of variances (must be > 0)
 #' @param mu2  n2 x d matrix of means
@@ -15,11 +13,6 @@ w2_distance <- function(mu, var, mu2, var2) {
 }
 
 #' Symmetric KL divergence between diagonal Gaussians
-#'
-#' sym_KL(i,j) = 0.5 * ( sum_d var[i,d]/var2[j,d] + sum_d var2[j,d]/var[i,d]
-#'                       + mahal_ij[i,j] + mahal_ji[i,j] )
-#'
-#' mahal_ij[i,j] = sum_d (mu[i,d]-mu2[j,d])^2 / var2[j,d]
 #'
 #' @param mu   n1 x d matrix of means
 #' @param var  n1 x d matrix of variances
@@ -32,16 +25,11 @@ sym_kl_distance <- function(mu, var, mu2, var2) {
 
 #' Parallel permutations for gene-set enrichment
 #'
-#' Runs n_perm Fisher-Yates shuffles of gene_stats and computes
-#' W^T %*% perm_stats for each (equivalent to R's crossprod(W, perm_stats)).
-#' Outer loop over permutations is parallelized via OpenMP.
-#'
-#' @param W       n_genes x n_sets weight matrix (column-stochastic)
-#' @param stats   n_genes gene-level statistics (must be unnamed numeric vector)
+#' @param W       n_genes x n_sets weight matrix
+#' @param stats   n_genes gene-level statistics
 #' @param n_perm  number of permutations
 #' @param seed    random seed
 #' @return        n_perm x n_sets matrix of null enrichment scores
 rcpp_enrichment_permutations <- function(W, stats, n_perm, seed) {
     .Call(`_geneSetEmbedding_rcpp_enrichment_permutations`, W, stats, n_perm, seed)
 }
-

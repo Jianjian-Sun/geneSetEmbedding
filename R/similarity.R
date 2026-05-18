@@ -1,5 +1,5 @@
 .rcpp_available <- function() {
-    requireNamespace("Rcpp", quietly = TRUE) &&
+  requireNamespace("Rcpp", quietly = TRUE) &&
     requireNamespace("RcppArmadillo", quietly = TRUE)
 }
 
@@ -30,23 +30,23 @@
 #' dim(sim2)
 #' @export
 gsemb_gene_cosine_similarity <- function(gene_embedding, other = NULL, eps = 1e-12) {
-    X <- as_numeric_matrix(gene_embedding)
-    if (is.null(rownames(X))) stop("gene_embedding must have rownames")
-    if (is.null(other)) {
-        Y <- X
-    } else {
-        Y <- as_numeric_matrix(other)
-        if (is.null(rownames(Y))) stop("other must have rownames")
-    }
-    if (ncol(X) != ncol(Y)) stop("embeddings must have the same number of columns")
-    x_norm <- sqrt(rowSums(X * X))
-    y_norm <- sqrt(rowSums(Y * Y))
-    x_norm <- pmax(x_norm, eps)
-    y_norm <- pmax(y_norm, eps)
-    sim <- (X / x_norm) %*% t(Y / y_norm)
-    rownames(sim) <- rownames(X)
-    colnames(sim) <- rownames(Y)
-    sim
+  X <- as_numeric_matrix(gene_embedding)
+  if (is.null(rownames(X))) stop("gene_embedding must have rownames")
+  if (is.null(other)) {
+    Y <- X
+  } else {
+    Y <- as_numeric_matrix(other)
+    if (is.null(rownames(Y))) stop("other must have rownames")
+  }
+  if (ncol(X) != ncol(Y)) stop("embeddings must have the same number of columns")
+  x_norm <- sqrt(rowSums(X * X))
+  y_norm <- sqrt(rowSums(Y * Y))
+  x_norm <- pmax(x_norm, eps)
+  y_norm <- pmax(y_norm, eps)
+  sim <- (X / x_norm) %*% t(Y / y_norm)
+  rownames(sim) <- rownames(X)
+  colnames(sim) <- rownames(Y)
+  sim
 }
 
 #' Compute pairwise distances between diagonal Gaussian set embeddings
@@ -80,67 +80,67 @@ gsemb_gene_cosine_similarity <- function(gene_embedding, other = NULL, eps = 1e-
 #' dim(dist_kl)
 #' @export
 gsemb_set_gaussian_distance <- function(set_mu,
-                                      set_var,
-                                      other_mu = NULL,
-                                      other_var = NULL,
-                                      metric = c("w2", "sym_kl"),
-                                      eps = 1e-8) {
-    metric <- match.arg(metric)
-    mu <- as_numeric_matrix(set_mu)
-    var <- as_numeric_matrix(set_var)
-    if (is.null(rownames(mu)) || is.null(rownames(var))) stop("set_mu/set_var must have rownames")
-    if (!all(dim(mu) == dim(var))) stop("set_mu and set_var must have identical dimensions")
-    if (!all(rownames(mu) == rownames(var))) stop("set_mu and set_var must have identical rownames")
+                                        set_var,
+                                        other_mu = NULL,
+                                        other_var = NULL,
+                                        metric = c("w2", "sym_kl"),
+                                        eps = 1e-8) {
+  metric <- match.arg(metric)
+  mu <- as_numeric_matrix(set_mu)
+  var <- as_numeric_matrix(set_var)
+  if (is.null(rownames(mu)) || is.null(rownames(var))) stop("set_mu/set_var must have rownames")
+  if (!all(dim(mu) == dim(var))) stop("set_mu and set_var must have identical dimensions")
+  if (!all(rownames(mu) == rownames(var))) stop("set_mu and set_var must have identical rownames")
 
-    if (is.null(other_mu)) other_mu <- mu
-    if (is.null(other_var)) other_var <- var
-    mu2 <- as_numeric_matrix(other_mu)
-    var2 <- as_numeric_matrix(other_var)
-    if (!all(dim(mu2) == dim(var2))) stop("other_mu and other_var must have identical dimensions")
-    if (ncol(mu) != ncol(mu2)) stop("mu and other_mu must have same number of columns")
+  if (is.null(other_mu)) other_mu <- mu
+  if (is.null(other_var)) other_var <- var
+  mu2 <- as_numeric_matrix(other_mu)
+  var2 <- as_numeric_matrix(other_var)
+  if (!all(dim(mu2) == dim(var2))) stop("other_mu and other_var must have identical dimensions")
+  if (ncol(mu) != ncol(mu2)) stop("mu and other_mu must have same number of columns")
 
-    var  <- pmax(var,  eps)
-    var2 <- pmax(var2, eps)
+  var <- pmax(var, eps)
+  var2 <- pmax(var2, eps)
 
-    if (.rcpp_available()) {
-        cpp_out <- if (metric == "w2") {
-            w2_distance(mu, var, mu2, var2)
-        } else {
-            sym_kl_distance(mu, var, mu2, var2)
-        }
-        rownames(cpp_out) <- rownames(mu)
-        colnames(cpp_out) <- rownames(mu2)
-        return(cpp_out)
-    }
-
-    # Fallback: pure-R vectorized implementation
-    if (metric == "w2") {
-        mu_sq  <- rowSums(mu  * mu)
-        mu2_sq <- rowSums(mu2 * mu2)
-        dmu2 <- mu_sq + outer(mu2_sq, mu_sq, "+") - 2 * mu %*% t(mu2)
-        sv  <- sqrt(var)
-        sv2 <- sqrt(var2)
-        var_term <- rowSums(sv * sv) + outer(rowSums(sv2 * sv2), rep(1, nrow(mu)), "+") - 2 * sv %*% t(sv2)
-        out <- dmu2 + var_term
+  if (.rcpp_available()) {
+    cpp_out <- if (metric == "w2") {
+      w2_distance(mu, var, mu2, var2)
     } else {
-        inv_var  <- 1 / var
-        inv_var2 <- 1 / var2
-        ratio_mat  <- var  %*% t(inv_var2)
-        ratio_mat2 <- var2 %*% t(inv_var)
-        mahal_ij <- (
-            t(t(rowSums(mu  * mu))  %*% t(inv_var2)) +
-            t(t(rowSums(mu2 * mu2)) %*% t(inv_var2)) -
-            2 * mu %*% (t(inv_var2) %*% mu2)
-        )
-        mahal_ji <- (
-            t(t(rowSums(mu2 * mu2)) %*% t(inv_var)) +
-            t(t(rowSums(mu  * mu))  %*% t(inv_var)) -
-            2 * mu2 %*% (t(inv_var) %*% mu)
-        )
-        out <- 0.5 * (ratio_mat + t(ratio_mat2) + mahal_ij + mahal_ji)
+      sym_kl_distance(mu, var, mu2, var2)
     }
+    rownames(cpp_out) <- rownames(mu)
+    colnames(cpp_out) <- rownames(mu2)
+    return(cpp_out)
+  }
 
-    rownames(out) <- rownames(mu)
-    colnames(out) <- rownames(mu2)
-    out
+  # Fallback: pure-R vectorized implementation
+  if (metric == "w2") {
+    mu_sq <- rowSums(mu * mu)
+    mu2_sq <- rowSums(mu2 * mu2)
+    dmu2 <- mu_sq + outer(mu2_sq, mu_sq, "+") - 2 * mu %*% t(mu2)
+    sv <- sqrt(var)
+    sv2 <- sqrt(var2)
+    var_term <- rowSums(sv * sv) + outer(rowSums(sv2 * sv2), rep(1, nrow(mu)), "+") - 2 * sv %*% t(sv2)
+    out <- dmu2 + var_term
+  } else {
+    inv_var <- 1 / var
+    inv_var2 <- 1 / var2
+    ratio_mat <- var %*% t(inv_var2)
+    ratio_mat2 <- var2 %*% t(inv_var)
+    mahal_ij <- (
+      t(t(rowSums(mu * mu)) %*% t(inv_var2)) +
+        t(t(rowSums(mu2 * mu2)) %*% t(inv_var2)) -
+        2 * mu %*% (t(inv_var2) %*% mu2)
+    )
+    mahal_ji <- (
+      t(t(rowSums(mu2 * mu2)) %*% t(inv_var)) +
+        t(t(rowSums(mu * mu)) %*% t(inv_var)) -
+        2 * mu2 %*% (t(inv_var) %*% mu)
+    )
+    out <- 0.5 * (ratio_mat + t(ratio_mat2) + mahal_ij + mahal_ji)
+  }
+
+  rownames(out) <- rownames(mu)
+  colnames(out) <- rownames(mu2)
+  out
 }

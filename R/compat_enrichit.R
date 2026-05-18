@@ -17,7 +17,7 @@
 #' rownames(mat)
 #' @export
 gsemb_as_embedding_matrix <- function(x, id_col = NULL) {
-    as_numeric_matrix(x, id_col = id_col)
+  as_numeric_matrix(x, id_col = id_col)
 }
 
 #' Row-wise cosine similarity
@@ -36,17 +36,17 @@ gsemb_as_embedding_matrix <- function(x, id_col = NULL) {
 #' rownames(X) <- paste0("ROW", 1:5)
 #' Y <- matrix(rnorm(12), nrow = 3, ncol = 4)
 #' rownames(Y) <- paste0("OTHER", 1:3)
-#' 
+#'
 #' # Compute cosine similarity within X
 #' sim1 <- gsemb_row_cosine_similarity(X)
 #' dim(sim1)
-#' 
+#'
 #' # Compute cosine similarity between X and Y
 #' sim2 <- gsemb_row_cosine_similarity(X, Y)
 #' dim(sim2)
 #' @export
 gsemb_row_cosine_similarity <- function(x, y = NULL, eps = 1e-12) {
-    gsemb_gene_cosine_similarity(gene_embedding = x, other = y, eps = eps)
+  gsemb_gene_cosine_similarity(gene_embedding = x, other = y, eps = eps)
 }
 
 #' Diagonal Gaussian 2-Wasserstein distance
@@ -66,17 +66,17 @@ gsemb_row_cosine_similarity <- function(x, y = NULL, eps = 1e-12) {
 #' mu1 <- matrix(rnorm(6), nrow = 2, ncol = 3)
 #' var1 <- matrix(rexp(6, rate = 2), nrow = 2, ncol = 3)
 #' rownames(mu1) <- rownames(var1) <- c("SET_A", "SET_B")
-#' 
+#'
 #' mu2 <- matrix(rnorm(9), nrow = 3, ncol = 3)
 #' var2 <- matrix(rexp(9, rate = 2), nrow = 3, ncol = 3)
 #' rownames(mu2) <- rownames(var2) <- c("SET_X", "SET_Y", "SET_Z")
-#' 
+#'
 #' # Compute Wasserstein-2 distances between the two collections
 #' dist_w2 <- gsemb_diag_gaussian_w2(mu1, var1, mu2, var2)
 #' dim(dist_w2)
 #' @export
 gsemb_diag_gaussian_w2 <- function(mu, var, mu2 = NULL, var2 = NULL, eps = 1e-8) {
-    gsemb_set_gaussian_distance(set_mu = mu, set_var = var, other_mu = mu2, other_var = var2, metric = "w2", eps = eps)
+  gsemb_set_gaussian_distance(set_mu = mu, set_var = var, other_mu = mu2, other_var = var2, metric = "w2", eps = eps)
 }
 
 #' Diagonal Gaussian symmetric KL distance
@@ -96,17 +96,17 @@ gsemb_diag_gaussian_w2 <- function(mu, var, mu2 = NULL, var2 = NULL, eps = 1e-8)
 #' mu1 <- matrix(rnorm(6), nrow = 2, ncol = 3)
 #' var1 <- matrix(rexp(6, rate = 2), nrow = 2, ncol = 3)
 #' rownames(mu1) <- rownames(var1) <- c("SET_A", "SET_B")
-#' 
+#'
 #' mu2 <- matrix(rnorm(9), nrow = 3, ncol = 3)
 #' var2 <- matrix(rexp(9, rate = 2), nrow = 3, ncol = 3)
 #' rownames(mu2) <- rownames(var2) <- c("SET_X", "SET_Y", "SET_Z")
-#' 
+#'
 #' # Compute symmetric KL divergences
 #' dist_kl <- gsemb_diag_gaussian_sym_kl(mu1, var1, mu2, var2)
 #' dim(dist_kl)
 #' @export
 gsemb_diag_gaussian_sym_kl <- function(mu, var, mu2 = NULL, var2 = NULL, eps = 1e-8) {
-    gsemb_set_gaussian_distance(set_mu = mu, set_var = var, other_mu = mu2, other_var = var2, metric = "sym_kl", eps = eps)
+  gsemb_set_gaussian_distance(set_mu = mu, set_var = var, other_mu = mu2, other_var = var2, metric = "sym_kl", eps = eps)
 }
 
 #' Gene-to-set score under diagonal Gaussian
@@ -125,29 +125,31 @@ gsemb_diag_gaussian_sym_kl <- function(mu, var, mu2 = NULL, var2 = NULL, eps = 1
 #' set.seed(456)
 #' gene_emb <- matrix(rnorm(15), nrow = 5, ncol = 3)
 #' rownames(gene_emb) <- paste0("GENE", 1:5)
-#' 
+#'
 #' set_mu <- matrix(rnorm(6), nrow = 2, ncol = 3)
 #' set_var <- matrix(rexp(6, rate = 1), nrow = 2, ncol = 3)
 #' rownames(set_mu) <- rownames(set_var) <- c("PATH1", "PATH2")
-#' 
+#'
 #' # Compute log-likelihood scores
 #' scores_loglik <- gsemb_gene_to_diag_gaussian_score(
-#'   gene_emb, set_mu, set_var, score = "loglik"
+#'   gene_emb, set_mu, set_var,
+#'   score = "loglik"
 #' )
 #' dim(scores_loglik)
-#' 
+#'
 #' # Compute negative Mahalanobis distance scores
 #' scores_negmah <- gsemb_gene_to_diag_gaussian_score(
-#'   gene_emb, set_mu, set_var, score = "neg_mahalanobis"
+#'   gene_emb, set_mu, set_var,
+#'   score = "neg_mahalanobis"
 #' )
 #' dim(scores_negmah)
 #' @export
 gsemb_gene_to_diag_gaussian_score <- function(gene_emb,
-                                            set_mu,
-                                            set_var,
-                                            score = c("loglik", "neg_mahalanobis"),
-                                            eps = 1e-8) {
-    gsemb_gene_to_set_score(gene_embedding = gene_emb, set_mu = set_mu, set_var = set_var, score = score, eps = eps)
+                                              set_mu,
+                                              set_var,
+                                              score = c("loglik", "neg_mahalanobis"),
+                                              eps = 1e-8) {
+  gsemb_gene_to_set_score(gene_embedding = gene_emb, set_mu = set_mu, set_var = set_var, score = score, eps = eps)
 }
 
 #' Make concise gene sets from diagonal Gaussian embeddings
@@ -172,16 +174,16 @@ gsemb_gene_to_diag_gaussian_score <- function(gene_emb,
 #' set.seed(789)
 #' gene_emb <- matrix(rnorm(30), nrow = 10, ncol = 3)
 #' rownames(gene_emb) <- paste0("GENE", 1:10)
-#' 
+#'
 #' set_mu <- matrix(rnorm(6), nrow = 2, ncol = 3)
 #' set_var <- matrix(rexp(6, rate = 0.5), nrow = 2, ncol = 3)
 #' rownames(set_mu) <- rownames(set_var) <- c("PATHWAY_A", "PATHWAY_B")
-#' 
+#'
 #' gene_sets <- list(
 #'   PATHWAY_A = c("GENE1", "GENE2", "GENE3", "GENE4", "GENE5"),
 #'   PATHWAY_B = c("GENE6", "GENE7", "GENE8", "GENE9", "GENE10")
 #' )
-#' 
+#'
 #' # Create concise gene sets (top 3 genes per set)
 #' concise <- gsemb_make_concise_gene_sets_from_gaussian(
 #'   gene_emb, set_mu, set_var,
@@ -193,27 +195,27 @@ gsemb_gene_to_diag_gaussian_score <- function(gene_emb,
 #' str(concise)
 #' @export
 gsemb_make_concise_gene_sets_from_gaussian <- function(gene_emb,
-                                                     set_mu,
-                                                     set_var,
-                                                     gene_sets = NULL,
-                                                     top_n = 50,
-                                                     restrict_to_members = TRUE,
-                                                     min_size = 5,
-                                                     max_size = 500,
-                                                     score = c("loglik", "neg_mahalanobis"),
-                                                     eps = 1e-8,
-                                                     ...) {
-    gsemb_make_concise_gene_sets(
-        gene_embedding = gene_emb,
-        set_mu = set_mu,
-        set_var = set_var,
-        gene_sets = gene_sets,
-        top_n = top_n,
-        restrict_to_members = restrict_to_members,
-        min_size = min_size,
-        max_size = max_size,
-        score = score,
-        eps = eps,
-        ...
-    )
+                                                       set_mu,
+                                                       set_var,
+                                                       gene_sets = NULL,
+                                                       top_n = 50,
+                                                       restrict_to_members = TRUE,
+                                                       min_size = 5,
+                                                       max_size = 500,
+                                                       score = c("loglik", "neg_mahalanobis"),
+                                                       eps = 1e-8,
+                                                       ...) {
+  gsemb_make_concise_gene_sets(
+    gene_embedding = gene_emb,
+    set_mu = set_mu,
+    set_var = set_var,
+    gene_sets = gene_sets,
+    top_n = top_n,
+    restrict_to_members = restrict_to_members,
+    min_size = min_size,
+    max_size = max_size,
+    score = score,
+    eps = eps,
+    ...
+  )
 }

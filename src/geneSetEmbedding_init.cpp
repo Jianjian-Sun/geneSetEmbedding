@@ -1,11 +1,9 @@
 // geneSetEmbedding_init.cpp
 // Custom R_init that registers C++ native functions without RcppExports.
-// Compiled from: gaussian.cpp (w2_distance, sym_kl_distance) and enrichment.cpp (rcpp_enrichment_permutations).
+// Do NOT add // [[Rcpp::export]] markers here.
 
 #define ARMA_USE_OPENMP
 #include <RcppArmadillo.h>
-// [[Rcpp::depends(RcppArmadillo)]]
-// [[Rcpp::plugins(openmp)]]
 
 #include <omp.h>
 
@@ -13,26 +11,22 @@ using namespace Rcpp;
 using namespace arma;
 
 // ===========================================================================
-// gaussian.cpp — w2_distance
+// w2_distance — diagonal 2-Wasserstein distance (BLAS)
 // ===========================================================================
 
-//' @export
-// [[Rcpp::export]]
 RcppExport SEXP _geneSetEmbedding_w2_distance(SEXP mu, SEXP var, SEXP mu2, SEXP var2) {
     BEGIN_RCPP
-    arma::mat mu_in  = as<arma::mat>(mu);
-    arma::mat var_in = as<arma::mat>(var);
+    arma::mat mu_in   = as<arma::mat>(mu);
+    arma::mat var_in  = as<arma::mat>(var);
     arma::mat mu2_in  = as<arma::mat>(mu2);
     arma::mat var2_in = as<arma::mat>(var2);
 
     const uword n1 = mu_in.n_rows;
     const uword n2 = mu2_in.n_rows;
-    const uword d  = mu_in.n_cols;
 
     vec mu_sq  = sum(mu_in  % mu_in,  1);
     vec mu2_sq = sum(mu2_in % mu2_in, 1);
 
-    // ||mu[i] - mu2[j]||^2 = repmat(mu_sq,1,n2) + repmat(mu2_sq.t(),n1,1) - 2*mu*mu2.t()
     mat dmu2 = repmat(mu_sq, 1, n2) + repmat(mu2_sq.t(), n1, 1) - 2.0 * mu_in * mu2_in.t();
 
     mat sv  = sqrt(var_in);
@@ -46,15 +40,18 @@ RcppExport SEXP _geneSetEmbedding_w2_distance(SEXP mu, SEXP var, SEXP mu2, SEXP 
 }
 
 // ===========================================================================
-// gaussian.cpp — sym_kl_distance
+// sym_kl_distance — symmetric KL divergence between diagonal Gaussians
+// Implements: sym_KL(i,j) = 0.5 * (sum_k a[i,k]/b[j,k] + sum_k b[j,k]/a[i,k]
+//                                        + mahal_ij[i,j] + mahal_ji[i,j])
+// where mahal_ij[i,j] = sum_k (mu[i,k]-mu2[j,k])^2 / b[j,k]
+//       mahal_ji[i,j] = sum_k (mu2[i,k]-mu[j,k])^2 / a[j,k]
+// Uses outer products + weighted matrix multiplication (BLAS).
 // ===========================================================================
 
-//' @export
-// [[Rcpp::export]]
 RcppExport SEXP _geneSetEmbedding_sym_kl_distance(SEXP mu, SEXP var, SEXP mu2, SEXP var2) {
     BEGIN_RCPP
-    arma::mat mu_in  = as<arma::mat>(mu);
-    arma::mat var_in = as<arma::mat>(var);
+    arma::mat mu_in   = as<arma::mat>(mu);
+    arma::mat var_in  = as<arma::mat>(var);
     arma::mat mu2_in  = as<arma::mat>(mu2);
     arma::mat var2_in = as<arma::mat>(var2);
 
@@ -62,38 +59,47 @@ RcppExport SEXP _geneSetEmbedding_sym_kl_distance(SEXP mu, SEXP var, SEXP mu2, S
     const uword n2 = mu2_in.n_rows;
     const uword d  = mu_in.n_cols;
 
+    // Ratio terms: ratio_mat[i,j] = sum_k var[i,k] * inv_var2[j,k]
+    //              ratio_mat2[j,i] = sum_k var2[j,k] * inv_var[i,k]
     mat inv_var  = 1.0 / var_in;
     mat inv_var2 = 1.0 / var2_in;
-
     mat ratio_mat  = var_in  * inv_var2.t();  // n1 x n2
     mat ratio_mat2 = var2_in * inv_var.t();   // n2 x n1
 
-    vec mu_sq    = sum(mu_in  % mu_in,  1);
-    vec mu2_sq   = sum(mu2_in % mu2_in, 1);
+    // Row sums of mu (n1 x 1) and mu2 (n2 x 1)
+    vec mu_sq  = sum(mu_in  % mu_in,  1);
+    vec mu2_sq = sum(mu2_in % mu2_in, 1);
+
+    // Row sums of inv_var and inv_var2
     vec iv_rsum  = sum(inv_var,  1);   // n1
     vec iv2_rsum = sum(inv_var2, 1);   // n2
 
-    // mahal_ij = repmat(mu_sq,1,n2)%repmat(iv2_rsum.t(),n1,1) + repmat(mu2_sq.t(),n1,1)%repmat(iv2_rsum.t(),n1,1) - 2*mu%*%(mu2%*%diag(iv2_rsum))
-    mat mu2_w = mu2_in.each_col() % inv_var2;   // n2 x d
-    mat mahal_ij = repmat(mu_sq,   1, n2) % repmat(iv2_rsum.t(), n1, 1) +
-                   repmat(mu2_sq.t(), n1, 1) % repmat(iv2_rsum.t(), n1, 1) -
-                   2.0 * mu_in * mu2_w.t();
+    // mahal_ij[i,j] = mu_sq[i]*iv2_rsum[j] + mu2_sq[j]*iv2_rsum[j]
+    //                 - 2 * sum_k mu[i,k] * mu2[j,k] * inv_var2[j,k]
+    // = outer(mu_sq, iv2_rsum) + outer(mu2_sq, iv2_rsum) - 2 * S
+    // where S[i,j] = sum_k mu[i,k] * mu2[j,k] * inv_var2[j,k]
+    //
+    // S = mu_in * (mu2_in .* inv_var2).t()   (BLAS matmul)
+    mat mu2_w = mu2_in;                         // n2 x d
+    for (uword j = 0; j < n2; j++) mu2_w.row(j) %= inv_var2.row(j);  // n2 x d
+    mat S = mu_in * mu2_w.t();                  // n1 x n2
+    mat mahal_ij = repmat(mu_sq, 1, n2) + repmat(mu2_sq.t(), n1, 1) - 2.0 * S;
 
-    mat mu_w = mu_in.each_col() % inv_var;
-    mat mahal_ji = repmat(mu2_sq.t(), n1, 1) % repmat(iv_rsum.t(), n1, 1) +
-                   repmat(mu_sq,   1, n2) % repmat(iv_rsum.t(), n1, 1) -
-                   2.0 * mu2_in * mu_w.t();
+    // mahal_ji[i,j] = mu2_sq[i]*iv_rsum[j] + mu_sq[j]*iv_rsum[j]
+    //                 - 2 * sum_k mu2[i,k] * mu[j,k] * inv_var[j,k]
+    mat mu_w = mu_in;                           // n1 x d
+    for (uword i = 0; i < n1; i++) mu_w.row(i) %= inv_var.row(i);   // n1 x d
+    mat S2 = mu2_in * mu_w.t();                 // n2 x n1
+    mat mahal_ji = repmat(mu2_sq.t(), n1, 1) + repmat(mu_sq, 1, n2) - 2.0 * S2.t();
 
     return Rcpp::wrap(0.5 * (ratio_mat + ratio_mat2.t() + mahal_ij + mahal_ji));
     END_RCPP
 }
 
 // ===========================================================================
-// enrichment.cpp — rcpp_enrichment_permutations (parallel)
+// rcpp_enrichment_permutations — parallel Fisher-Yates permutations
 // ===========================================================================
 
-//' @export
-// [[Rcpp::export]]
 RcppExport SEXP _geneSetEmbedding_rcpp_enrichment_permutations(SEXP W, SEXP stats, SEXP n_perm, SEXP seed) {
     BEGIN_RCPP
     arma::mat W_in      = as<arma::mat>(W);
@@ -134,12 +140,12 @@ RcppExport SEXP _geneSetEmbedding_rcpp_enrichment_permutations(SEXP W, SEXP stat
 }
 
 // ===========================================================================
-// R_init hook — register all native functions
+// R_init hook — register all native routines
 // ===========================================================================
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_geneSetEmbedding_w2_distance",               (DL_FUNC) &_geneSetEmbedding_w2_distance,               4},
-    {"_geneSetEmbedding_sym_kl_distance",            (DL_FUNC) &_geneSetEmbedding_sym_kl_distance,            4},
+    {"_geneSetEmbedding_w2_distance",                (DL_FUNC) &_geneSetEmbedding_w2_distance,                4},
+    {"_geneSetEmbedding_sym_kl_distance",             (DL_FUNC) &_geneSetEmbedding_sym_kl_distance,             4},
     {"_geneSetEmbedding_rcpp_enrichment_permutations", (DL_FUNC) &_geneSetEmbedding_rcpp_enrichment_permutations, 4},
     {NULL, NULL, 0}
 };

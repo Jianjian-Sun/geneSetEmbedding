@@ -37,14 +37,14 @@
 #' )
 #' # Remove self-loops
 #' edges <- edges[edges$node1 != edges$node2, ]
-#' 
+#'
 #' # Simulate a few gene sets
 #' gene_sets <- list(
 #'   SET1 = sample(nodes, 10),
 #'   SET2 = sample(nodes, 8),
 #'   SET3 = sample(nodes, 12)
 #' )
-#' 
+#'
 #' # Fit embedding using SVD (fastest method)
 #' fit <- gsemb_fit(
 #'   ppi = edges,
@@ -55,110 +55,110 @@
 #'   alpha = 0.5,
 #'   epochs = 5
 #' )
-#' 
+#'
 #' # Inspect the result
 #' print(fit)
-#' 
+#'
 #' # Compute gene-gene similarities
 #' sim <- gsemb_gene_similarity(fit)
 #' dim(sim)
 #' }
 #' @export
 gsemb_fit <- function(ppi,
-                    gene_sets,
-                    node1 = "node1",
-                    node2 = "node2",
-                    weight = NULL,
-                    directed = FALSE,
-                    nodes = NULL,
-                    method = c("svd", "torch_autoencoder", "set2gaussian_torch"),
-                    dim = 64,
-                    k = 128,
-                    alpha = 0.5,
-                    tol = 1e-10,
-                    max_iter = 200,
-                    normalize = "col",
-                    epochs = 200,
-                    lr = 5e-3,
-                    batch_size = 8,
-                    seed = 1,
-                    device = c("cpu", "cuda"),
-                    ...) {
-    method <- match.arg(method)
-    device <- match.arg(device)
-    gene_sets <- validate_gene_sets(gene_sets)
+                      gene_sets,
+                      node1 = "node1",
+                      node2 = "node2",
+                      weight = NULL,
+                      directed = FALSE,
+                      nodes = NULL,
+                      method = c("svd", "torch_autoencoder", "set2gaussian_torch"),
+                      dim = 64,
+                      k = 128,
+                      alpha = 0.5,
+                      tol = 1e-10,
+                      max_iter = 200,
+                      normalize = "col",
+                      epochs = 200,
+                      lr = 5e-3,
+                      batch_size = 8,
+                      seed = 1,
+                      device = c("cpu", "cuda"),
+                      ...) {
+  method <- match.arg(method)
+  device <- match.arg(device)
+  gene_sets <- validate_gene_sets(gene_sets)
 
-    adj <- if (inherits(ppi, "Matrix")) {
-        ppi
-    } else {
-        gsemb_build_graph(ppi, node1 = node1, node2 = node2, weight = weight, directed = directed, nodes = nodes)
-    }
-    if (is.null(rownames(adj))) stop("PPI graph must have node names")
+  adj <- if (inherits(ppi, "Matrix")) {
+    ppi
+  } else {
+    gsemb_build_graph(ppi, node1 = node1, node2 = node2, weight = weight, directed = directed, nodes = nodes)
+  }
+  if (is.null(rownames(adj))) stop("PPI graph must have node names")
 
-    if (method == "set2gaussian_torch") {
-        fit <- gsemb_fit_set2gaussian_torch(
-            adj = adj,
-            gene_sets = gene_sets,
-            k = k,
-            dim = dim,
-            alpha = alpha,
-            tol = tol,
-            max_iter = max_iter,
-            normalize = normalize,
-            epochs = epochs,
-            lr = lr,
-            batch_size = batch_size,
-            seed = seed,
-            device = device,
-            ...
-        )
-        res <- list(
-            adj = adj,
-            method = method,
-            gene_embedding = fit$gene_embedding,
-            set_mu = fit$set_mu,
-            set_var = fit$set_var,
-            landmarks = fit$landmarks,
-            losses = fit$losses
-        )
-        class(res) <- "gsemb_embedding"
-        return(res)
-    }
-
-    landmarks <- gsemb_select_landmarks(adj, k = k, method = "degree", seed = seed)
-    node_features <- gsemb_compute_node_landmark_features(
-        adj = adj,
-        landmarks = landmarks,
-        alpha = alpha,
-        tol = tol,
-        max_iter = max_iter,
-        normalize = normalize,
-        seed = seed
+  if (method == "set2gaussian_torch") {
+    fit <- gsemb_fit_set2gaussian_torch(
+      adj = adj,
+      gene_sets = gene_sets,
+      k = k,
+      dim = dim,
+      alpha = alpha,
+      tol = tol,
+      max_iter = max_iter,
+      normalize = normalize,
+      epochs = epochs,
+      lr = lr,
+      batch_size = batch_size,
+      seed = seed,
+      device = device,
+      ...
     )
-    emb_fit <- gsemb_fit_gene_embedding(
-        node_features = node_features,
-        dim = dim,
-        method = if (method == "torch_autoencoder") "torch_autoencoder" else "svd",
-        epochs = epochs,
-        lr = lr,
-        batch_size = max(64, 4 * dim),
-        seed = seed,
-        device = device
-    )
-    gene_embedding <- emb_fit$embedding
-    gauss <- gsemb_fit_set_gaussians_from_members(gene_embedding, gene_sets)
-
     res <- list(
-        adj = adj,
-        method = method,
-        gene_embedding = gene_embedding,
-        set_mu = gauss$mu,
-        set_var = gauss$var,
-        landmarks = landmarks,
-        losses = NULL
+      adj = adj,
+      method = method,
+      gene_embedding = fit$gene_embedding,
+      set_mu = fit$set_mu,
+      set_var = fit$set_var,
+      landmarks = fit$landmarks,
+      losses = fit$losses
     )
     class(res) <- "gsemb_embedding"
-    res
+    return(res)
+  }
+
+  landmarks <- gsemb_select_landmarks(adj, k = k, method = "degree", seed = seed)
+  node_features <- gsemb_compute_node_landmark_features(
+    adj = adj,
+    landmarks = landmarks,
+    alpha = alpha,
+    tol = tol,
+    max_iter = max_iter,
+    normalize = normalize,
+    seed = seed
+  )
+  emb_fit <- gsemb_fit_gene_embedding(
+    node_features = node_features,
+    dim = dim,
+    method = if (method == "torch_autoencoder") "torch_autoencoder" else "svd",
+    epochs = epochs,
+    lr = lr,
+    batch_size = max(64, 4 * dim),
+    seed = seed,
+    device = device
+  )
+  gene_embedding <- emb_fit$embedding
+  gauss <- gsemb_fit_set_gaussians_from_members(gene_embedding, gene_sets)
+
+  res <- list(
+    adj = adj,
+    method = method,
+    gene_embedding = gene_embedding,
+    set_mu = gauss$mu,
+    set_var = gauss$var,
+    landmarks = landmarks,
+    losses = NULL
+  )
+  class(res) <- "gsemb_embedding"
+  res
 }
 
 #' Compute gene-gene cosine similarities
@@ -174,31 +174,31 @@ gsemb_fit <- function(ppi,
 #' # Assuming you have a fitted gsemb_embedding object named 'fit'
 #' # (see example in gsemb_fit)
 #' sim_all <- gsemb_gene_similarity(fit)
-#' 
+#'
 #' # Compute similarities for a subset of genes
 #' sim_sub <- gsemb_gene_similarity(fit, genes = c("GENE1", "GENE2", "GENE3"))
 #' }
 #' @export
 gsemb_gene_similarity <- function(x,
-                                genes = NULL,
-                                other_genes = NULL,
-                                eps = 1e-12) {
-    gene_emb <- if (inherits(x, "gsemb_embedding")) x$gene_embedding else x
-    if (is.null(genes) && is.null(other_genes)) {
-        return(gsemb_gene_cosine_similarity(gene_emb, eps = eps))
-    }
-    all_genes <- rownames(gene_emb)
-    if (is.null(all_genes)) stop("gene embedding must have rownames")
-    if (is.null(genes)) genes <- all_genes
-    genes <- intersect(as.character(genes), all_genes)
-    if (length(genes) == 0) stop("no genes found in embedding")
-    if (is.null(other_genes)) {
-        other_genes <- genes
-    } else {
-        other_genes <- intersect(as.character(other_genes), all_genes)
-        if (length(other_genes) == 0) stop("no other_genes found in embedding")
-    }
-    gsemb_gene_cosine_similarity(gene_emb[genes, , drop = FALSE], gene_emb[other_genes, , drop = FALSE], eps = eps)
+                                  genes = NULL,
+                                  other_genes = NULL,
+                                  eps = 1e-12) {
+  gene_emb <- if (inherits(x, "gsemb_embedding")) x$gene_embedding else x
+  if (is.null(genes) && is.null(other_genes)) {
+    return(gsemb_gene_cosine_similarity(gene_emb, eps = eps))
+  }
+  all_genes <- rownames(gene_emb)
+  if (is.null(all_genes)) stop("gene embedding must have rownames")
+  if (is.null(genes)) genes <- all_genes
+  genes <- intersect(as.character(genes), all_genes)
+  if (length(genes) == 0) stop("no genes found in embedding")
+  if (is.null(other_genes)) {
+    other_genes <- genes
+  } else {
+    other_genes <- intersect(as.character(other_genes), all_genes)
+    if (length(other_genes) == 0) stop("no other_genes found in embedding")
+  }
+  gsemb_gene_cosine_similarity(gene_emb[genes, , drop = FALSE], gene_emb[other_genes, , drop = FALSE], eps = eps)
 }
 
 #' Compute set-set distances between Gaussian embeddings
@@ -216,7 +216,7 @@ gsemb_gene_similarity <- function(x,
 #' # (see example in gsemb_fit)
 #' # Compute Wasserstein-2 distances between all gene sets
 #' dist_w2 <- gsemb_set_similarity(fit, metric = "w2")
-#' 
+#'
 #' # Compute symmetric KL divergences for a subset of sets
 #' dist_kl <- gsemb_set_similarity(
 #'   fit,
@@ -226,30 +226,30 @@ gsemb_gene_similarity <- function(x,
 #' }
 #' @export
 gsemb_set_similarity <- function(x,
-                               sets = NULL,
-                               other_sets = NULL,
-                               metric = c("w2", "sym_kl"),
-                               eps = 1e-8) {
-    metric <- match.arg(metric)
-    if (!inherits(x, "gsemb_embedding")) stop("x must be a gsemb_embedding object")
-    mu <- x$set_mu
-    var <- x$set_var
-    if (is.null(rownames(mu))) stop("set embedding must have rownames")
+                                 sets = NULL,
+                                 other_sets = NULL,
+                                 metric = c("w2", "sym_kl"),
+                                 eps = 1e-8) {
+  metric <- match.arg(metric)
+  if (!inherits(x, "gsemb_embedding")) stop("x must be a gsemb_embedding object")
+  mu <- x$set_mu
+  var <- x$set_var
+  if (is.null(rownames(mu))) stop("set embedding must have rownames")
 
-    all_sets <- rownames(mu)
-    if (is.null(sets) && is.null(other_sets)) {
-        return(gsemb_set_gaussian_distance(mu, var, metric = metric, eps = eps))
-    }
-    if (is.null(sets)) sets <- all_sets
-    sets <- intersect(as.character(sets), all_sets)
-    if (length(sets) == 0) stop("no sets found in embedding")
-    if (is.null(other_sets)) {
-        other_sets <- sets
-    } else {
-        other_sets <- intersect(as.character(other_sets), all_sets)
-        if (length(other_sets) == 0) stop("no other_sets found in embedding")
-    }
-    gsemb_set_gaussian_distance(mu[sets, , drop = FALSE], var[sets, , drop = FALSE], mu[other_sets, , drop = FALSE], var[other_sets, , drop = FALSE], metric = metric, eps = eps)
+  all_sets <- rownames(mu)
+  if (is.null(sets) && is.null(other_sets)) {
+    return(gsemb_set_gaussian_distance(mu, var, metric = metric, eps = eps))
+  }
+  if (is.null(sets)) sets <- all_sets
+  sets <- intersect(as.character(sets), all_sets)
+  if (length(sets) == 0) stop("no sets found in embedding")
+  if (is.null(other_sets)) {
+    other_sets <- sets
+  } else {
+    other_sets <- intersect(as.character(other_sets), all_sets)
+    if (length(other_sets) == 0) stop("no other_sets found in embedding")
+  }
+  gsemb_set_gaussian_distance(mu[sets, , drop = FALSE], var[sets, , drop = FALSE], mu[other_sets, , drop = FALSE], var[other_sets, , drop = FALSE], metric = metric, eps = eps)
 }
 
 #' Compute distances between two collections of gene clusters
@@ -276,7 +276,7 @@ gsemb_set_similarity <- function(x,
 #' )
 #' # Compute distances between these clusters
 #' dist_mat <- gsemb_cluster_similarity(fit, clusters = clusters, metric = "w2")
-#' 
+#'
 #' # Compute distances between two different cluster lists
 #' other_clusters <- list(
 #'   OTHER1 = c("GENE10", "GENE11"),
@@ -291,31 +291,31 @@ gsemb_set_similarity <- function(x,
 #' }
 #' @export
 gsemb_cluster_similarity <- function(x,
-                                   clusters,
-                                   other_clusters = NULL,
-                                   metric = c("w2", "sym_kl"),
-                                   eps = 1e-8,
-                                   min_size = 2) {
-    metric <- match.arg(metric)
-    if (!inherits(x, "gsemb_embedding")) stop("x must be a gsemb_embedding object")
-    if (!is.list(clusters) || is.null(names(clusters))) stop("clusters must be a named list")
-    if (is.null(other_clusters)) other_clusters <- clusters
-    if (!is.list(other_clusters) || is.null(names(other_clusters))) stop("other_clusters must be a named list")
+                                     clusters,
+                                     other_clusters = NULL,
+                                     metric = c("w2", "sym_kl"),
+                                     eps = 1e-8,
+                                     min_size = 2) {
+  metric <- match.arg(metric)
+  if (!inherits(x, "gsemb_embedding")) stop("x must be a gsemb_embedding object")
+  if (!is.list(clusters) || is.null(names(clusters))) stop("clusters must be a named list")
+  if (is.null(other_clusters)) other_clusters <- clusters
+  if (!is.list(other_clusters) || is.null(names(other_clusters))) stop("other_clusters must be a named list")
 
-    gene_emb <- x$gene_embedding
-    if (is.null(rownames(gene_emb))) stop("gene embedding must have rownames")
+  gene_emb <- x$gene_embedding
+  if (is.null(rownames(gene_emb))) stop("gene embedding must have rownames")
 
-    to_gauss <- function(gs) {
-        gs <- lapply(gs, function(v) intersect(as.character(v), rownames(gene_emb)))
-        gs <- gs[vapply(gs, length, integer(1)) >= min_size]
-        if (length(gs) == 0) stop("no clusters have enough genes in embedding")
-        g <- gsemb_fit_set_gaussians_from_members(gene_emb, gs, eps = eps)
-        list(mu = g$mu, var = g$var)
-    }
+  to_gauss <- function(gs) {
+    gs <- lapply(gs, function(v) intersect(as.character(v), rownames(gene_emb)))
+    gs <- gs[vapply(gs, length, integer(1)) >= min_size]
+    if (length(gs) == 0) stop("no clusters have enough genes in embedding")
+    g <- gsemb_fit_set_gaussians_from_members(gene_emb, gs, eps = eps)
+    list(mu = g$mu, var = g$var)
+  }
 
-    a <- to_gauss(clusters)
-    b <- to_gauss(other_clusters)
-    gsemb_set_gaussian_distance(a$mu, a$var, b$mu, b$var, metric = metric, eps = eps)
+  a <- to_gauss(clusters)
+  b <- to_gauss(other_clusters)
+  gsemb_set_gaussian_distance(a$mu, a$var, b$mu, b$var, metric = metric, eps = eps)
 }
 
 #' Create concise gene sets from a fitted embedding
@@ -339,23 +339,23 @@ gsemb_cluster_similarity <- function(x,
 #' )
 #' # Create concise versions
 #' concise <- gsemb_concise_gene_sets(fit, gene_sets = orig_sets, top_n = 3)
-#' 
+#'
 #' # View concise sets
 #' str(concise)
 #' }
 #' @export
 gsemb_concise_gene_sets <- function(x,
-                                  gene_sets,
-                                  ...) {
-    if (!inherits(x, "gsemb_embedding")) stop("x must be a gsemb_embedding object")
-    gene_sets <- validate_gene_sets(gene_sets)
-    gsemb_make_concise_gene_sets(
-        gene_embedding = x$gene_embedding,
-        set_mu = x$set_mu,
-        set_var = x$set_var,
-        gene_sets = gene_sets,
-        ...
-    )
+                                    gene_sets,
+                                    ...) {
+  if (!inherits(x, "gsemb_embedding")) stop("x must be a gsemb_embedding object")
+  gene_sets <- validate_gene_sets(gene_sets)
+  gsemb_make_concise_gene_sets(
+    gene_embedding = x$gene_embedding,
+    set_mu = x$set_mu,
+    set_var = x$set_var,
+    gene_sets = gene_sets,
+    ...
+  )
 }
 
 #' One-click training from PPI edges and gene sets
@@ -377,14 +377,14 @@ gsemb_concise_gene_sets <- function(x,
 #' )
 #' # Remove self-loops
 #' edges <- edges[edges$node1 != edges$node2, ]
-#' 
+#'
 #' # Simulate a few gene sets
 #' gene_sets <- list(
 #'   SET1 = sample(nodes, 10),
 #'   SET2 = sample(nodes, 8),
 #'   SET3 = sample(nodes, 12)
 #' )
-#' 
+#'
 #' # One-click training
 #' fit <- gsemb_train_embedding_from_ppi_and_genesets(
 #'   ppi_edges = edges,
@@ -394,15 +394,15 @@ gsemb_concise_gene_sets <- function(x,
 #'   k = 20,
 #'   alpha = 0.5
 #' )
-#' 
+#'
 #' # Inspect the result
 #' print(fit)
 #' }
 #' @export
 gsemb_train_embedding_from_ppi_and_genesets <- function(ppi_edges,
-                                                      gene_sets,
-                                                      ...) {
-    gsemb_fit(ppi = ppi_edges, gene_sets = gene_sets, ...)
+                                                        gene_sets,
+                                                        ...) {
+  gsemb_fit(ppi = ppi_edges, gene_sets = gene_sets, ...)
 }
 
 #' Compute all default similarity matrices from a fitted embedding
@@ -418,7 +418,7 @@ gsemb_train_embedding_from_ppi_and_genesets <- function(ppi_edges,
 #' # (see example in gsemb_fit)
 #' # Compute all similarity matrices
 #' all_sims <- gsemb_calculate_all_similarities(fit)
-#' 
+#'
 #' # Access individual matrices
 #' gene_gene_sim <- all_sims$gene_gene
 #' set_set_w2 <- all_sims$set_set_w2
@@ -426,14 +426,14 @@ gsemb_train_embedding_from_ppi_and_genesets <- function(ppi_edges,
 #' }
 #' @export
 gsemb_calculate_all_similarities <- function(x,
-                                           eps_gene = 1e-12,
-                                           eps_set = 1e-8) {
-    if (!inherits(x, "gsemb_embedding")) stop("x must be a gsemb_embedding object")
-    list(
-        gene_gene = gsemb_gene_similarity(x, eps = eps_gene),
-        set_set_w2 = gsemb_set_similarity(x, metric = "w2", eps = eps_set),
-        set_set_kl = gsemb_set_similarity(x, metric = "sym_kl", eps = eps_set)
-    )
+                                             eps_gene = 1e-12,
+                                             eps_set = 1e-8) {
+  if (!inherits(x, "gsemb_embedding")) stop("x must be a gsemb_embedding object")
+  list(
+    gene_gene = gsemb_gene_similarity(x, eps = eps_gene),
+    set_set_w2 = gsemb_set_similarity(x, metric = "w2", eps = eps_set),
+    set_set_kl = gsemb_set_similarity(x, metric = "sym_kl", eps = eps_set)
+  )
 }
 
 #' Create concise gene sets (high-level wrapper)
@@ -454,15 +454,15 @@ gsemb_calculate_all_similarities <- function(x,
 #' )
 #' # Get concise versions using the wrapper
 #' concise <- gsemb_get_concise_gene_sets(fit, gene_sets = orig_sets, top_n = 3)
-#' 
+#'
 #' # View concise sets
 #' str(concise)
 #' }
 #' @export
 gsemb_get_concise_gene_sets <- function(x,
-                                      gene_sets,
-                                      ...) {
-    gsemb_concise_gene_sets(x, gene_sets = gene_sets, ...)
+                                        gene_sets,
+                                        ...) {
+  gsemb_concise_gene_sets(x, gene_sets = gene_sets, ...)
 }
 
 #' Enrichment analysis using gene‑set Gaussian embeddings
@@ -496,7 +496,7 @@ gsemb_get_concise_gene_sets <- function(x,
 #' all_genes <- rownames(fit$gene_embedding)
 #' stats <- rnorm(length(all_genes))
 #' names(stats) <- all_genes
-#' 
+#'
 #' # Run enrichment analysis
 #' enrich <- gsemb_embedding_enrichment(
 #'   gene_stats = stats,
@@ -509,138 +509,140 @@ gsemb_get_concise_gene_sets <- function(x,
 #'   nperm = 100,
 #'   alternative = "greater"
 #' )
-#' 
+#'
 #' # View top enriched sets
 #' head(enrich[order(enrich$pvalue), ])
 #' }
 #' @export
 gsemb_embedding_enrichment <- function(gene_stats,
-                                      x,
-                                      sets = NULL,
-                                      gene_sets = NULL,
-                                      score = c("loglik", "neg_mahalanobis"),
-                                      temperature = 1.0,
-                                      nperm = 1000,
-                                      alternative = c("two.sided", "greater", "less"),
-                                      seed = 1,
-                                      eps = 1e-8,
-                                      top_genes = 30) {
-    score <- match.arg(score)
-    alternative <- match.arg(alternative)
-    if (!inherits(x, "gsemb_embedding")) stop("x must be a gsemb_embedding object")
-    if (!is.numeric(gene_stats) || is.null(names(gene_stats))) stop("gene_stats must be a named numeric vector")
-    if (!is.numeric(temperature) || length(temperature) != 1 || temperature <= 0) stop("temperature must be a positive scalar")
-    if (!is.numeric(nperm) || length(nperm) != 1 || nperm < 0) stop("nperm must be a non-negative integer")
-    nperm <- as.integer(nperm)
-    if (!is.numeric(top_genes) || length(top_genes) != 1 || top_genes < 0) stop("top_genes must be a non-negative integer")
-    top_genes <- as.integer(top_genes)
+                                       x,
+                                       sets = NULL,
+                                       gene_sets = NULL,
+                                       score = c("loglik", "neg_mahalanobis"),
+                                       temperature = 1.0,
+                                       nperm = 1000,
+                                       alternative = c("two.sided", "greater", "less"),
+                                       seed = 1,
+                                       eps = 1e-8,
+                                       top_genes = 30) {
+  score <- match.arg(score)
+  alternative <- match.arg(alternative)
+  if (!inherits(x, "gsemb_embedding")) stop("x must be a gsemb_embedding object")
+  if (!is.numeric(gene_stats) || is.null(names(gene_stats))) stop("gene_stats must be a named numeric vector")
+  if (!is.numeric(temperature) || length(temperature) != 1 || temperature <= 0) stop("temperature must be a positive scalar")
+  if (!is.numeric(nperm) || length(nperm) != 1 || nperm < 0) stop("nperm must be a non-negative integer")
+  nperm <- as.integer(nperm)
+  if (!is.numeric(top_genes) || length(top_genes) != 1 || top_genes < 0) stop("top_genes must be a non-negative integer")
+  top_genes <- as.integer(top_genes)
 
-    gene_emb <- x$gene_embedding
-    if (is.null(rownames(gene_emb))) stop("gene embedding must have rownames")
-    mu <- x$set_mu
-    var <- x$set_var
-    if (is.null(rownames(mu)) || is.null(rownames(var))) stop("set embedding must have rownames")
+  gene_emb <- x$gene_embedding
+  if (is.null(rownames(gene_emb))) stop("gene embedding must have rownames")
+  mu <- x$set_mu
+  var <- x$set_var
+  if (is.null(rownames(mu)) || is.null(rownames(var))) stop("set embedding must have rownames")
 
-    genes <- intersect(names(gene_stats), rownames(gene_emb))
-    if (length(genes) < 2) stop("not enough genes overlap between gene_stats and gene_embedding")
-    gene_stats <- gene_stats[genes]
-    gene_emb <- gene_emb[genes, , drop = FALSE]
+  genes <- intersect(names(gene_stats), rownames(gene_emb))
+  if (length(genes) < 2) stop("not enough genes overlap between gene_stats and gene_embedding")
+  gene_stats <- gene_stats[genes]
+  gene_emb <- gene_emb[genes, , drop = FALSE]
 
-    if (is.null(sets)) {
-        sets <- rownames(mu)
+  if (is.null(sets)) {
+    sets <- rownames(mu)
+  } else {
+    sets <- intersect(as.character(sets), rownames(mu))
+  }
+  if (length(sets) == 0) stop("no sets found in embedding")
+  mu <- mu[sets, , drop = FALSE]
+  var <- var[sets, , drop = FALSE]
+
+  if (!is.null(gene_sets)) {
+    gene_sets <- validate_gene_sets(gene_sets)
+  }
+
+  S <- gsemb_gene_to_set_score(
+    gene_embedding = gene_emb,
+    set_mu = mu,
+    set_var = var,
+    score = score,
+    eps = eps
+  )
+  S <- as.matrix(S)
+  col_max <- apply(S, 2, max)
+  S <- S - rep(col_max, each = nrow(S))
+  exp_S <- exp(S / temperature)
+  col_sum <- colSums(exp_S)
+  exp_S <- exp_S / rep(col_sum, each = nrow(exp_S))
+  exp_S[!is.finite(exp_S)] <- 0
+  W <- exp_S
+
+  es <- as.numeric(crossprod(W, gene_stats))
+  names(es) <- colnames(W)
+
+  n_es <- length(es)
+  z <- rep(NA_real_, n_es)
+  null_sd <- rep(eps, n_es)
+  pvals <- rep(NA_real_, n_es)
+  names(z) <- names(es)
+  names(null_sd) <- names(es)
+  names(pvals) <- names(es)
+
+  if (nperm > 0) {
+    if (requireNamespace("RcppArmadillo", quietly = TRUE)) {
+      null_scores <- rcpp_enrichment_permutations(W, gene_stats, nperm, seed)
     } else {
-        sets <- intersect(as.character(sets), rownames(mu))
+      set.seed(seed)
+      null_scores <- matrix(0, nperm, n_es)
+      for (b in seq_len(nperm)) {
+        perm_stats <- sample(gene_stats, length(gene_stats), replace = FALSE)
+        null_scores[b, ] <- as.numeric(crossprod(W, perm_stats))
+      }
     }
-    if (length(sets) == 0) stop("no sets found in embedding")
-    mu <- mu[sets, , drop = FALSE]
-    var <- var[sets, , drop = FALSE]
+    null_mean <- colMeans(null_scores)
+    col_sd <- apply(null_scores, 2, stats::sd)
+    null_sd <- pmax(col_sd, eps)
+    z <- (es - null_mean) / null_sd
 
-    if (!is.null(gene_sets)) {
-        gene_sets <- validate_gene_sets(gene_sets)
+    if (alternative == "greater") {
+      pvals <- colMeans(t(t(null_scores) >= es))
+    } else if (alternative == "less") {
+      pvals <- colMeans(t(t(null_scores) <= es))
+    } else {
+      cen <- null_mean
+      pvals <- colMeans(abs(t(t(null_scores) - cen)) >= abs(es - cen))
     }
+    pvals <- pmax(pvals, 1 / nperm)
+  }
 
-    S <- gsemb_gene_to_set_score(
-        gene_embedding = gene_emb,
-        set_mu = mu,
-        set_var = var,
-        score = score,
-        eps = eps
-    )
-    S <- as.matrix(S)
-    col_max <- apply(S, 2, max)
-    S <- S - rep(col_max, each = nrow(S))
-    exp_S <- exp(S / temperature)
-    col_sum <- colSums(exp_S)
-    exp_S <- exp_S / rep(col_sum, each = nrow(exp_S))
-    exp_S[!is.finite(exp_S)] <- 0
-    W <- exp_S
+  padj <- stats::p.adjust(pvals, method = "BH")
 
-    es <- as.numeric(crossprod(W, gene_stats))
-    names(es) <- colnames(W)
+  set_size <- rep(NA_integer_, length(es))
+  if (!is.null(gene_sets)) {
+    set_size <- vapply(names(es), function(sid) {
+      if (!sid %in% names(gene_sets)) {
+        return(NA_integer_)
+      }
+      length(intersect(gene_sets[[sid]], genes))
+    }, integer(1))
+  }
 
-    n_es <- length(es)
-    z <- rep(NA_real_, n_es)
-    null_sd <- rep(eps, n_es)
-    pvals <- rep(NA_real_, n_es)
-    names(z) <- names(es)
-    names(null_sd) <- names(es)
-    names(pvals) <- names(es)
-
-    if (nperm > 0) {
-        if (requireNamespace("RcppArmadillo", quietly = TRUE)) {
-            null_scores <- rcpp_enrichment_permutations(W, gene_stats, nperm, seed)
-        } else {
-            set.seed(seed)
-            null_scores <- matrix(0, nperm, n_es)
-            for (b in seq_len(nperm)) {
-                perm_stats <- sample(gene_stats, length(gene_stats), replace = FALSE)
-                null_scores[b, ] <- as.numeric(crossprod(W, perm_stats))
-            }
-        }
-        null_mean <- colMeans(null_scores)
-        col_sd <- apply(null_scores, 2, stats::sd)
-        null_sd <- pmax(col_sd, eps)
-        z <- (es - null_mean) / null_sd
-
-        if (alternative == "greater") {
-            pvals <- colMeans(t(t(null_scores) >= es))
-        } else if (alternative == "less") {
-            pvals <- colMeans(t(t(null_scores) <= es))
-        } else {
-            cen <- null_mean
-            pvals <- colMeans(abs(t(t(null_scores) - cen)) >= abs(es - cen))
-        }
-        pvals <- pmax(pvals, 1 / nperm)
+  core <- rep(NA_character_, length(es))
+  if (top_genes > 0) {
+    for (j in seq_along(es)) {
+      wj <- W[, j]
+      ord <- order(wj, decreasing = TRUE)
+      ord <- ord[seq_len(min(top_genes, length(ord)))]
+      core[j] <- paste0(rownames(W)[ord], collapse = "/")
     }
+  }
 
-    padj <- stats::p.adjust(pvals, method = "BH")
-
-    set_size <- rep(NA_integer_, length(es))
-    if (!is.null(gene_sets)) {
-        set_size <- vapply(names(es), function(sid) {
-            if (!sid %in% names(gene_sets)) return(NA_integer_)
-            length(intersect(gene_sets[[sid]], genes))
-        }, integer(1))
-    }
-
-    core <- rep(NA_character_, length(es))
-    if (top_genes > 0) {
-        for (j in seq_along(es)) {
-            wj <- W[, j]
-            ord <- order(wj, decreasing = TRUE)
-            ord <- ord[seq_len(min(top_genes, length(ord)))]
-            core[j] <- paste0(rownames(W)[ord], collapse = "/")
-        }
-    }
-
-    data.frame(
-        ID = names(es),
-        ES = as.numeric(es),
-        z = as.numeric(z),
-        pvalue = as.numeric(pvals),
-        p.adjust = as.numeric(padj),
-        setSize = as.integer(set_size),
-        core_enrichment = core,
-        stringsAsFactors = FALSE
-    )
+  data.frame(
+    ID = names(es),
+    ES = as.numeric(es),
+    z = as.numeric(z),
+    pvalue = as.numeric(pvals),
+    p.adjust = as.numeric(padj),
+    setSize = as.integer(set_size),
+    core_enrichment = core,
+    stringsAsFactors = FALSE
+  )
 }

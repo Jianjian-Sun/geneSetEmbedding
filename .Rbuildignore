@@ -1,4 +1,5 @@
 Makefile
-^\\.\\.Rcheck$
-^\\.\\.Rcheck/.*
+^\.\.Rcheck$
+^\.\.Rcheck/.*$
 .aider*
+^RcppExports\.R$
