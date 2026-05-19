@@ -587,7 +587,7 @@ gsemb_embedding_enrichment <- function(gene_stats,
   names(pvals) <- names(es)
 
   if (nperm > 0) {
-    if (requireNamespace("RcppArmadillo", quietly = TRUE)) {
+    if (.native_routine_available("_geneSetEmbedding_rcpp_enrichment_permutations")) {
       null_scores <- rcpp_enrichment_permutations(W, gene_stats, nperm, seed)
     } else {
       set.seed(seed)

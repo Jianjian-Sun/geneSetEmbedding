@@ -42,13 +42,15 @@ rownames(set_mu) <- rownames(set_var) <- c("PATH1", "PATH2")
 
 # Compute log-likelihood scores
 scores_loglik <- gsemb_gene_to_set_score(
-  gene_emb, set_mu, set_var, score = "loglik"
+  gene_emb, set_mu, set_var,
+  score = "loglik"
 )
 dim(scores_loglik)
 
 # Compute negative Mahalanobis distance scores
 scores_negmah <- gsemb_gene_to_set_score(
-  gene_emb, set_mu, set_var, score = "neg_mahalanobis"
+  gene_emb, set_mu, set_var,
+  score = "neg_mahalanobis"
 )
 dim(scores_negmah)
 }

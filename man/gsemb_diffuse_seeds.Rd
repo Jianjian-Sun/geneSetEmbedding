@@ -34,9 +34,13 @@ W <- Matrix::sparseMatrix(
 W <- W \%*\% Matrix::Diagonal(x = 1 / Matrix::colSums(W))
 
 # Two seed vectors: one concentrated on node 1, another on node 2
-S <- matrix(c(1, 0, 0,
-              0, 1, 0),
-            nrow = 3, ncol = 2)
+S <- matrix(
+  c(
+    1, 0, 0,
+    0, 1, 0
+  ),
+  nrow = 3, ncol = 2
+)
 
 # Diffuse both seeds simultaneously
 P <- gsemb_diffuse_seeds(W, S, alpha = 0.5)

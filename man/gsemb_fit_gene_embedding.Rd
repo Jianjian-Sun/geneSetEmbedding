@@ -54,7 +54,8 @@ dim(fit_svd$embedding)
 # Fit embedding using torch autoencoder (requires torch)
 \dontrun{
 fit_torch <- gsemb_fit_gene_embedding(
-  X, dim = 5, method = "torch_autoencoder",
+  X,
+  dim = 5, method = "torch_autoencoder",
   epochs = 10, lr = 1e-3, device = "cpu"
 )
 dim(fit_torch$embedding)

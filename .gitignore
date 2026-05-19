@@ -1,6 +1,6 @@
 .aider*
 gmon.out
-
+..Rcheck
 # Compiled C++ (keep source, ignore build artifacts)
 src/*.o
 src/*.so

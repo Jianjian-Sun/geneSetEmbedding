@@ -5,7 +5,10 @@
 #define ARMA_USE_OPENMP
 #include <RcppArmadillo.h>
 
+#include <random>
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 using namespace Rcpp;
 using namespace arma;
@@ -111,9 +114,14 @@ RcppExport SEXP _geneSetEmbedding_rcpp_enrichment_permutations(SEXP W, SEXP stat
     const uword n_set  = W_in.n_cols;
     mat null_scores(n_perm_in, n_set, fill::zeros);
 
-    #pragma omp for schedule(static)
+#ifdef _OPENMP
+    #pragma omp parallel for schedule(static)
+#endif
     for (int b = 0; b < n_perm_in; b++) {
-        int t = omp_get_thread_num();
+        int t = 0;
+#ifdef _OPENMP
+        t = omp_get_thread_num();
+#endif
         uint64_t rng_seed = static_cast<uint64_t>(seed_in) * 1315423911ULL +
                              static_cast<uint64_t>(b) * 2654435761ULL +
                              static_cast<uint64_t>(t) * 671936453ULL;

@@ -11,8 +11,10 @@ Depends:
 Imports:
     Matrix,
     Rcpp,
-    RcppArmadillo,
     stats
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
 Suggests:
     torch,
     testthat

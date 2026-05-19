@@ -3,3 +3,7 @@ Makefile
 ^\.\.Rcheck/.*$
 .aider*
 ^RcppExports\.R$
+^gmon\.out$
+^src/.*\.(o|so|dylib)$
+^src/symbols\.rds$
+^CLAUDE\.md$

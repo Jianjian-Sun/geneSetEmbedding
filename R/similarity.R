@@ -1,6 +1,5 @@
-.rcpp_available <- function() {
-  requireNamespace("Rcpp", quietly = TRUE) &&
-    requireNamespace("RcppArmadillo", quietly = TRUE)
+.native_routine_available <- function(symbol) {
+  isTRUE(is.loaded(symbol, PACKAGE = "geneSetEmbedding"))
 }
 
 #' Compute cosine similarity between gene embeddings
@@ -102,7 +101,13 @@ gsemb_set_gaussian_distance <- function(set_mu,
   var <- pmax(var, eps)
   var2 <- pmax(var2, eps)
 
-  if (.rcpp_available()) {
+  native_symbol <- if (metric == "w2") {
+    "_geneSetEmbedding_w2_distance"
+  } else {
+    "_geneSetEmbedding_sym_kl_distance"
+  }
+
+  if (.native_routine_available(native_symbol)) {
     cpp_out <- if (metric == "w2") {
       w2_distance(mu, var, mu2, var2)
     } else {
