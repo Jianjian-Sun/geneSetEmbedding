@@ -465,6 +465,138 @@ gsemb_get_concise_gene_sets <- function(x,
   gsemb_concise_gene_sets(x, gene_sets = gene_sets, ...)
 }
 
+# 【更改前】置换零分布在 gsemb_embedding_enrichment 内 for 循环逐次 sample + crossprod（O(nperm) 次 R 调用）。
+# 【更改后】优先 perm_mat + 一次 crossprod（BLAS）；其次 Rcpp；再次 vapply 生成 perm_mat 后 crossprod。
+# perm_mat 由外层预生成，各批共用，保证分批时 p 值一致。
+.gsemb_enrichment_null_scores <- function(W, stats_vec, nperm, seed, perm_mat = NULL, n_workers = 1L) {
+  stats_vec <- as.numeric(stats_vec)
+
+  if (!is.null(perm_mat)) {
+    return(t(crossprod(W, perm_mat)))
+  }
+
+  if (.native_routine_available("_geneSetEmbedding_rcpp_enrichment_permutations")) {
+    return(rcpp_enrichment_permutations(W, stats_vec, nperm, seed))
+  }
+
+  set.seed(seed)
+  perm_inner <- vapply(
+    seq_len(nperm),
+    function(b) sample(stats_vec, length(stats_vec), replace = FALSE),
+    FUN.VALUE = numeric(length(stats_vec))
+  )
+
+  if (n_workers <= 1L || !requireNamespace("future.apply", quietly = TRUE)) {
+    return(t(crossprod(W, perm_inner)))
+  }
+
+  old_plan <- future::plan()
+  on.exit(future::plan(old_plan), add = TRUE)
+  future::plan(future::multisession, workers = n_workers)
+  null_list <- future.apply::future_lapply(
+    seq_len(nperm),
+    function(b) as.numeric(crossprod(W, perm_inner[, b])),
+    future.seed = TRUE
+  )
+  do.call(rbind, null_list)
+}
+
+# 【更改前】gsemb_embedding_enrichment 为单函数体：一次算全部 sets 的 S/W/ES/置换/p.adjust。
+# 【更改后】提取为单次 sets 批次的内部函数；ES 与置换共用 as.numeric(gene_stats) 顺序；
+#          two.sided 用矩阵对矩阵比较；p.adjust 由外层合并后统一 BH。
+.gsemb_embedding_enrichment_sets <- function(gene_stats,
+                                             gene_emb,
+                                             genes,
+                                             mu,
+                                             var,
+                                             gene_sets,
+                                             score,
+                                             temperature,
+                                             nperm,
+                                             alternative,
+                                             seed,
+                                             eps,
+                                             top_genes,
+                                             perm_mat) {
+  S <- gsemb_gene_to_set_score(
+    gene_embedding = gene_emb,
+    set_mu = mu,
+    set_var = var,
+    score = score,
+    eps = eps
+  )
+
+  S <- as.matrix(S)
+  col_max <- apply(S, 2, max)
+  S <- S - rep(col_max, each = nrow(S))
+  exp_S <- exp(S / temperature)
+  col_sum <- colSums(exp_S)
+  W <- exp_S / rep(col_sum, each = nrow(exp_S))
+  W[!is.finite(W)] <- 0
+
+  # 【更改前】crossprod(W, gene_stats) 使用 intersect() 顺序的命名向量，与置换 sample 顺序可能不一致。
+  # 【更改后】as.numeric(gene_stats) 与 rownames(gene_emb) 严格同序，ES 与置换共用同一顺序。
+  stats_vec <- as.numeric(gene_stats)
+  es <- as.numeric(crossprod(W, stats_vec))
+  names(es) <- colnames(W)
+  n_es <- length(es)
+
+  z <- rep(NA_real_, n_es)
+  pvals <- rep(NA_real_, n_es)
+
+  if (nperm > 0L) {
+    null_scores <- .gsemb_enrichment_null_scores(W, stats_vec, nperm, seed, perm_mat)
+    null_mean <- colMeans(null_scores)
+    null_sd <- pmax(apply(null_scores, 2, stats::sd), eps)
+    z <- (es - null_mean) / null_sd
+
+    es_mat <- matrix(es, nrow = nperm, ncol = n_es, byrow = TRUE)
+    if (alternative == "greater") {
+      pvals <- colMeans(null_scores >= es_mat)
+    } else if (alternative == "less") {
+      pvals <- colMeans(null_scores <= es_mat)
+    } else {
+      # 【更改前】abs(t(t(null_scores) - cen)) >= abs(es - cen) 中矩阵与向量比较可能因回收算错。
+      # 【更改后】cen_mat/shift_mat 均为 nperm x n_es，矩阵对矩阵比较。
+      cen_mat <- matrix(null_mean, nrow = nperm, ncol = n_es, byrow = TRUE)
+      shift_mat <- matrix(abs(es - null_mean), nrow = nperm, ncol = n_es, byrow = TRUE)
+      pvals <- colMeans(abs(null_scores - cen_mat) >= shift_mat)
+    }
+    pvals <- pmax(pvals, 1 / nperm)
+  }
+
+  set_size <- rep(NA_integer_, n_es)
+  if (!is.null(gene_sets)) {
+    set_size <- vapply(names(es), function(sid) {
+      if (!sid %in% names(gene_sets)) {
+        return(NA_integer_)
+      }
+      length(intersect(gene_sets[[sid]], genes))
+    }, integer(1))
+  }
+
+  core <- rep(NA_character_, length(es))
+  if (top_genes > 0L) {
+    for (j in seq_along(es)) {
+      wj <- W[, j]
+      ord <- order(wj, decreasing = TRUE)
+      ord <- ord[seq_len(min(top_genes, length(ord)))]
+      core[j] <- paste0(rownames(W)[ord], collapse = "/")
+    }
+  }
+
+  data.frame(
+    ID = names(es),
+    ES = as.numeric(es),
+    z = as.numeric(z),
+    pvalue = as.numeric(pvals),
+    p.adjust = NA_real_,
+    setSize = as.integer(set_size),
+    core_enrichment = core,
+    stringsAsFactors = FALSE
+  )
+}
+
 #' Enrichment analysis using gene‑set Gaussian embeddings
 #'
 #' Given a vector of gene‑level statistics (e.g., log‑fold‑changes, p‑values),
@@ -537,112 +669,94 @@ gsemb_embedding_enrichment <- function(gene_stats,
 
   gene_emb <- x$gene_embedding
   if (is.null(rownames(gene_emb))) stop("gene embedding must have rownames")
-  mu <- x$set_mu
-  var <- x$set_var
+  mu <- as_numeric_matrix(x$set_mu)
+  var <- as_numeric_matrix(x$set_var)
   if (is.null(rownames(mu)) || is.null(rownames(var))) stop("set embedding must have rownames")
+  if (nrow(mu) != nrow(var)) stop("set_mu and set_var must have the same number of rows")
+  if (length(rownames(mu)) != nrow(mu)) {
+    stop("set_mu rownames length (", length(rownames(mu)), ") != nrow (", nrow(mu), ")")
+  }
 
   genes <- intersect(names(gene_stats), rownames(gene_emb))
   if (length(genes) < 2) stop("not enough genes overlap between gene_stats and gene_embedding")
-  gene_stats <- gene_stats[genes]
   gene_emb <- gene_emb[genes, , drop = FALSE]
+  # 【更改前】gene_stats <- gene_stats[genes]，顺序为 intersect() 返回序（非 embedding 行序）。
+  # 【更改后】按 rownames(gene_emb) 重排，与 ES/置换的 as.numeric 顺序严格一致。
+  gene_stats <- gene_stats[rownames(gene_emb)]
+  storage.mode(gene_stats) <- "double"
 
+  set_names <- rownames(mu)
   if (is.null(sets)) {
-    sets <- rownames(mu)
+    set_idx <- seq_len(nrow(mu))
   } else {
-    sets <- intersect(as.character(sets), rownames(mu))
+    set_idx <- match(as.character(sets), set_names, nomatch = 0L)
+    if (any(set_idx == 0L)) {
+      bad <- sets[set_idx == 0L]
+      stop(
+        "some sets are not in set_mu rownames; first missing: ",
+        paste(head(bad, 3L), collapse = ", ")
+      )
+    }
   }
-  if (length(sets) == 0) stop("no sets found in embedding")
-  mu <- mu[sets, , drop = FALSE]
-  var <- var[sets, , drop = FALSE]
+  if (length(set_idx) == 0L) stop("no sets found in embedding")
+  mu <- mu[set_idx, , drop = FALSE]
+  var <- var[set_idx, , drop = FALSE]
+  sets <- set_names[set_idx]
 
   if (!is.null(gene_sets)) {
     gene_sets <- validate_gene_sets(gene_sets)
   }
 
-  S <- gsemb_gene_to_set_score(
-    gene_embedding = gene_emb,
-    set_mu = mu,
-    set_var = var,
-    score = score,
-    eps = eps
-  )
-  S <- as.matrix(S)
-  col_max <- apply(S, 2, max)
-  S <- S - rep(col_max, each = nrow(S))
-  exp_S <- exp(S / temperature)
-  col_sum <- colSums(exp_S)
-  exp_S <- exp_S / rep(col_sum, each = nrow(exp_S))
-  exp_S[!is.finite(exp_S)] <- 0
-  W <- exp_S
-
-  es <- as.numeric(crossprod(W, gene_stats))
-  names(es) <- colnames(W)
-
-  n_es <- length(es)
-  z <- rep(NA_real_, n_es)
-  null_sd <- rep(eps, n_es)
-  pvals <- rep(NA_real_, n_es)
-  names(z) <- names(es)
-  names(null_sd) <- names(es)
-  names(pvals) <- names(es)
-
-  if (nperm > 0) {
-    if (.native_routine_available("_geneSetEmbedding_rcpp_enrichment_permutations")) {
-      null_scores <- rcpp_enrichment_permutations(W, gene_stats, nperm, seed)
-    } else {
-      set.seed(seed)
-      null_scores <- matrix(0, nperm, n_es)
-      for (b in seq_len(nperm)) {
-        perm_stats <- sample(gene_stats, length(gene_stats), replace = FALSE)
-        null_scores[b, ] <- as.numeric(crossprod(W, perm_stats))
-      }
-    }
-    null_mean <- colMeans(null_scores)
-    col_sd <- apply(null_scores, 2, stats::sd)
-    null_sd <- pmax(col_sd, eps)
-    z <- (es - null_mean) / null_sd
-
-    if (alternative == "greater") {
-      pvals <- colMeans(t(t(null_scores) >= es))
-    } else if (alternative == "less") {
-      pvals <- colMeans(t(t(null_scores) <= es))
-    } else {
-      cen <- null_mean
-      pvals <- colMeans(abs(t(t(null_scores) - cen)) >= abs(es - cen))
-    }
-    pvals <- pmax(pvals, 1 / nperm)
+  # 【更改前】无预生成 perm_mat；置换在函数内 set.seed 后逐次 sample（分批时会各自生成）。
+  # 【更改后】外层 set.seed 一次生成 perm_mat，各批 .gsemb_embedding_enrichment_sets 共用。
+  perm_mat <- NULL
+  if (nperm > 0L) {
+    stats_vec <- as.numeric(gene_stats)
+    set.seed(seed)
+    perm_mat <- vapply(
+      seq_len(nperm),
+      function(b) sample(stats_vec, length(stats_vec), replace = FALSE),
+      FUN.VALUE = numeric(length(stats_vec))
+    )
   }
 
-  padj <- stats::p.adjust(pvals, method = "BH")
-
-  set_size <- rep(NA_integer_, length(es))
-  if (!is.null(gene_sets)) {
-    set_size <- vapply(names(es), function(sid) {
-      if (!sid %in% names(gene_sets)) {
-        return(NA_integer_)
-      }
-      length(intersect(gene_sets[[sid]], genes))
-    }, integer(1))
+  # 【更改前】一次 gsemb_gene_to_set_score(全部 sets)，n_g*n_s 过大时 OOM。
+  # 【更改后】n_g*n_s > 2e7 时按 sets 自动拆批，rbind 后统一 p.adjust(BH)。
+  n_sets <- length(set_idx)
+  n_genes <- nrow(gene_emb)
+  sets_per_batch <- if (as.numeric(n_genes) * as.numeric(n_sets) > 2e7) {
+    max(50L, as.integer(floor(2e7 / max(n_genes, 1L))))
+  } else {
+    n_sets
+  }
+  if (!is.finite(sets_per_batch) || sets_per_batch < 1L) {
+    sets_per_batch <- n_sets
   }
 
-  core <- rep(NA_character_, length(es))
-  if (top_genes > 0) {
-    for (j in seq_along(es)) {
-      wj <- W[, j]
-      ord <- order(wj, decreasing = TRUE)
-      ord <- ord[seq_len(min(top_genes, length(ord)))]
-      core[j] <- paste0(rownames(W)[ord], collapse = "/")
+  idx_batches <- split(set_idx, ceiling(seq_along(set_idx) / sets_per_batch))
+  parts <- lapply(idx_batches, function(batch_idx) {
+    if (any(batch_idx < 1L | batch_idx > nrow(mu))) {
+      stop("invalid set index in batch: min=", min(batch_idx), ", max=", max(batch_idx), ", nrow=", nrow(mu))
     }
-  }
+    .gsemb_embedding_enrichment_sets(
+      gene_stats = gene_stats,
+      gene_emb = gene_emb,
+      genes = genes,
+      mu = mu[batch_idx, , drop = FALSE],
+      var = var[batch_idx, , drop = FALSE],
+      gene_sets = gene_sets,
+      score = score,
+      temperature = temperature,
+      nperm = nperm,
+      alternative = alternative,
+      seed = seed,
+      eps = eps,
+      top_genes = top_genes,
+      perm_mat = perm_mat
+    )
+  })
 
-  data.frame(
-    ID = names(es),
-    ES = as.numeric(es),
-    z = as.numeric(z),
-    pvalue = as.numeric(pvals),
-    p.adjust = as.numeric(padj),
-    setSize = as.integer(set_size),
-    core_enrichment = core,
-    stringsAsFactors = FALSE
-  )
+  out <- do.call(rbind, parts)
+  out$p.adjust <- stats::p.adjust(out$pvalue, method = "BH")
+  out
 }

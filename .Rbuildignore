@@ -7,3 +7,5 @@ Makefile
 ^src/.*\.(o|so|dylib)$
 ^src/symbols\.rds$
 ^CLAUDE\.md$
+^\.github$
+^scripts$

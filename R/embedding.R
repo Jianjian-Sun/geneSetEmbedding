@@ -106,6 +106,20 @@ gsemb_fit_gene_embedding <- function(node_features,
   list(embedding = emb, model = model, method = method)
 }
 
+# 【更改前】gsemb_fit_set_gaussians_from_members 内用 apply(X, 2, stats::var)，每列单独调用 stats::var。
+# 【更改后】用 .gsemb_col_vars 一次 sweep+colSums 向量化；有 matrixStats 时优先 colVars。
+.gsemb_col_vars <- function(X) {
+  if (requireNamespace("matrixStats", quietly = TRUE)) {
+    return(matrixStats::colVars(X, na.rm = TRUE))
+  }
+  n <- nrow(X)
+  if (n < 2L) {
+    return(rep(NA_real_, ncol(X)))
+  }
+  mu <- colMeans(X)
+  colSums((X - rep(mu, each = n))^2) / (n - 1)
+}
+
 #' Fit diagonal Gaussian embeddings for gene sets from member genes
 #'
 #' Compute mean and diagonal variance of member gene embeddings for each set.
@@ -156,8 +170,9 @@ gsemb_fit_set_gaussians_from_members <- function(gene_embedding,
     if (nrow(X) == 1) {
       var[sid, ] <- rep(eps, d)
     } else {
-      v <- apply(X, 2, stats::var)
-      var[sid, ] <- pmax(v, eps)
+      # 【更改前】apply(X, 2, stats::var) — 每列一次 R 层 stats::var 调用。
+      # 【更改后】.gsemb_col_vars(X) — 单次向量化列方差，语义相同。
+      var[sid, ] <- pmax(.gsemb_col_vars(X), eps)
     }
   }
   list(mu = mu, var = var)

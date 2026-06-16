@@ -47,35 +47,52 @@ gsemb_gene_to_set_score <- function(gene_embedding,
   if (!all(dim(mu) == dim(var))) stop("set_mu and set_var must have the same dimensions")
   if (ncol(E) != ncol(mu)) stop("gene_embedding and set_mu must have the same number of columns")
   var <- pmax(var, eps)
+  inv_var <- 1 / var
 
-  inv_var <- 1 / var # n_s x d
-
-  # Tile gene matrix (n_g x d) so each row of E is repeated n_s times:
-  # E_tiled: (n_g * n_s) x d  [row order: set1_gene1, set1_gene2, ..., set2_gene1, ...]
-  E_tiled <- E[rep(seq_len(nrow(E)), each = nrow(mu)), , drop = FALSE]
-  # Tile mu (n_s x d) so each set mean is repeated n_g times, same block order:
-  # mu_tiled: (n_g * n_s) x d
-  mu_tiled <- mu[rep(seq_len(nrow(mu)), times = nrow(E)), , drop = FALSE]
-  # Tile inv_var (n_s x d) the same way:
-  inv_var_tiled <- inv_var[rep(seq_len(nrow(mu)), times = nrow(E)), , drop = FALSE]
-
-  # Squared differences weighted by inverse variance: (n_g * n_s) x d
-  diff_sq <- (E_tiled - mu_tiled)^2 * inv_var_tiled
-  # Sum over dimensions -> weighted Mahalanobis distances: (n_g * n_s)
-  md2 <- rowSums(diff_sq)
-
-  # Reshape back to n_g x n_s matrix
-  out <- matrix(md2, nrow = nrow(E), ncol = nrow(mu), byrow = TRUE)
+  # 【更改前】将 E/mu/inv_var 扩成 (n_g*n_s) x d 的巨型临时矩阵，再 rowSums 后 reshape；
+  #          峰值内存约 n_g*n_s*d（Reactome 规模可达 8–9 GB）。
+  # 【更改后】用 BLAS 矩阵乘法直接得到 n_g x n_s 的 md2 矩阵，峰值约 n_g*n_s（几百 MB）：
+  #   md2[g,s] = sum_d (E[g,d]-mu[s,d])^2/var[s,d]
+  #            = E^2 %*% t(inv_var) - 2*E %*% t(mu*inv_var) + sum_d mu^2/var
+  E2 <- E * E
+  mu_w <- mu * inv_var
+  md2 <- E2 %*% t(inv_var) - 2 * (E %*% t(mu_w))
+  md2 <- sweep(md2, 2L, rowSums(mu * mu * inv_var), "+")
 
   if (score == "neg_mahalanobis") {
-    out <- -out
+    out <- -md2
   } else {
-    logdet <- rowSums(log(var)) # n_s
-    out <- -0.5 * (out + rep(logdet, each = nrow(E)))
+    logdet <- rowSums(log(var))
+    out <- -0.5 * sweep(md2, 2L, logdet, "+")
   }
   rownames(out) <- rownames(E)
   colnames(out) <- rownames(mu)
   out
+}
+
+# 【更改前】gsemb_make_concise_gene_sets 在 select="softmax_mass" 时对每个基因集单独 exp + cumsum。
+# 【更改后】restrict_to_members=FALSE 时用 .gsemb_softmax_mass_k_matrix 对所有列一次向量化；
+#          单集路径仍用 .gsemb_softmax_mass_k，逻辑与原先循环体相同。
+.gsemb_softmax_mass_k <- function(s_sorted, mass, temperature, min_size, max_size) {
+  x <- (s_sorted - max(s_sorted)) / temperature
+  w <- exp(x)
+  w <- w / sum(w)
+  cumw <- cumsum(w)
+  k <- which(cumw >= mass)[1]
+  if (is.na(k) || k < 1) k <- 1
+  k <- max(k, min_size)
+  k <- min(k, max_size, length(s_sorted))
+  k
+}
+
+.gsemb_softmax_mass_k_matrix <- function(scores_mat, mass, temperature, min_size, max_size) {
+  S <- scores_mat - rep(apply(scores_mat, 2, max), each = nrow(scores_mat))
+  W <- exp(S / temperature)
+  W <- W / rep(colSums(W), each = nrow(W))
+  cumw <- apply(W, 2, cumsum)
+  k_raw <- apply(cumw >= mass, 2, function(col) which(col)[1])
+  k_raw[is.na(k_raw)] <- 1L
+  pmax(min_size, pmin(max_size, k_raw, nrow(scores_mat)))
 }
 
 #' Create concise gene sets from embeddings
@@ -166,6 +183,20 @@ gsemb_make_concise_gene_sets <- function(gene_embedding,
     all_scores <- gsemb_gene_to_set_score(E, mu, var, score = score, eps = eps)
   }
 
+  # 【更改前】所有 select 模式均走下方 for 循环；softmax_mass 每集单独 exp/cumsum。
+  # 【更改后】restrict_to_members=FALSE 且 softmax_mass 时，先算全矩阵再 .gsemb_softmax_mass_k_matrix 向量化。
+  if (select == "softmax_mass" && !restrict_to_members) {
+    if (!is.numeric(mass) || length(mass) != 1 || mass <= 0 || mass > 1) stop("mass must be in (0, 1]")
+    if (!is.numeric(temperature) || length(temperature) != 1 || temperature <= 0) stop("temperature must be > 0")
+    scores_mat <- gsemb_gene_to_set_score(E, mu, var, score = score, eps = eps)
+    ord <- apply(scores_mat, 2, order, decreasing = TRUE)
+    sorted_scores <- sapply(seq_len(ncol(scores_mat)), function(j) scores_mat[ord[, j], j])
+    k_vec <- .gsemb_softmax_mass_k_matrix(sorted_scores, mass, temperature, min_size, max_size)
+    for (j in seq_along(set_ids)) {
+      sid <- set_ids[j]
+      concise[[sid]] <- rownames(E)[ord[, j]][seq_len(k_vec[j])]
+    }
+  } else {
   for (sid in set_ids) {
     if (restrict_to_members) {
       if (!sid %in% names(gene_sets)) next
@@ -210,17 +241,12 @@ gsemb_make_concise_gene_sets <- function(gene_embedding,
     } else {
       if (!is.numeric(mass) || length(mass) != 1 || mass <= 0 || mass > 1) stop("mass must be in (0, 1]")
       if (!is.numeric(temperature) || length(temperature) != 1 || temperature <= 0) stop("temperature must be > 0")
-      x <- (s_sorted - max(s_sorted)) / temperature
-      w <- exp(x)
-      w <- w / sum(w)
-      cumw <- cumsum(w)
-      k <- which(cumw >= mass)[1]
-      if (is.na(k) || k < 1) k <- 1
-      if (k < min_size) k <- min_size
-      if (k > max_size) k <- max_size
-      k <- min(k, length(candidates))
+      # 【更改前】内联 exp + cumsum 循环体（见 git 历史 concise.R 第 213–222 行）。
+      # 【更改后】提取为 .gsemb_softmax_mass_k，语义不变。
+      k <- .gsemb_softmax_mass_k(s_sorted, mass, temperature, min_size, max_size)
       concise[[sid]] <- candidates[seq_len(k)]
     }
+  }
   }
   concise <- concise[vapply(concise, length, integer(1)) > 0]
   concise

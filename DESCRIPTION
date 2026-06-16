@@ -17,6 +17,9 @@ LinkingTo:
     RcppArmadillo
 Suggests:
     torch,
-    testthat
+    testthat,
+    future,
+    future.apply,
+    matrixStats
 Encoding: UTF-8
-RoxygenNote: 7.3.3
+Config/roxygen2/version: 8.0.0
