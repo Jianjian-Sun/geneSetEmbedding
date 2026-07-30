@@ -51,7 +51,8 @@ Returned by `gsemb_fit()` with fields:
 
 ### Key Files
 
-- **R/api.R**: High-level functions — `gsemb_fit`, `gsemb_gene_similarity`, `gsemb_set_similarity`, `gsemb_embedding_enrichment`, `gsemb_concise_gene_sets`, `gsemb_calculate_all_similarities`, `gsemb_cluster_similarity`
+- **R/api.R**: High-level functions — `gsemb_fit`, `gsemb_gene_similarity`, `gsemb_set_similarity`, `gsemb_concise_gene_sets`, `gsemb_calculate_all_similarities`, `gsemb_cluster_similarity`
+- **R/weighted_enrichment.R**: Soft-membership enrichment — `gsemb_embedding_enrichment`, `gsemb_weighted_gsea`, `gsemb_weighted_ora`, `gsemb_sweep_hub_beta` (optional `restrict_to_members`, hub `degree_beta`)
 - **R/diffusion.R**: RWR, multi-seed diffusion (`gsemb_rwr`, `gsemb_diffuse_seeds`, `gsemb_compute_node_landmark_features`, `gsemb_compute_set_landmark_features`)
 - **R/embedding.R**: Gene embedding via SVD or torch autoencoder; Gaussian fitting from gene set members
 - **R/similarity.R**: Cosine similarity for genes; diagonal Gaussian distances (W2, symmetric KL) for sets
