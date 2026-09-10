@@ -44,58 +44,60 @@ RcppExport SEXP _geneSetEmbedding_w2_distance(SEXP mu, SEXP var, SEXP mu2, SEXP 
 
 // ===========================================================================
 // sym_kl_distance — symmetric KL divergence between diagonal Gaussians
-// Implements: sym_KL(i,j) = 0.5 * (sum_k a[i,k]/b[j,k] + sum_k b[j,k]/a[i,k]
-//                                        + mahal_ij[i,j] + mahal_ji[i,j])
-// where mahal_ij[i,j] = sum_k (mu[i,k]-mu2[j,k])^2 / b[j,k]
-//       mahal_ji[i,j] = sum_k (mu2[i,k]-mu[j,k])^2 / a[j,k]
-// Uses outer products + weighted matrix multiplication (BLAS).
+//
+// For each pair (i, j) and dimension k:
+//   symKL(i,j) = 0.5 * sum_k [
+//       var[i,k]/var2[j,k] + var2[j,k]/var[i,k]
+//     + (mu[i,k]-mu2[j,k])^2 / var2[j,k]
+//     + (mu2[j,k]-mu[i,k])^2 / var[i,k]
+//     - 2
+//   ]
+// Equivalently after summing over k:
+//   0.5 * (ratio_mat + ratio_mat2.t() + mahal_ij + mahal_ji - 2*d)
+// where
+//   mahal_ij[i,j] = sum_k (mu[i,k]-mu2[j,k])^2 / var2[j,k]
+//   mahal_ji[i,j] = sum_k (mu2[j,k]-mu[i,k])^2 / var[i,k]
+// Uses outer products / matmul (BLAS). Rows of mu,var are set i; rows of
+// mu2,var2 are set j.
 // ===========================================================================
 
 RcppExport SEXP _geneSetEmbedding_sym_kl_distance(SEXP mu, SEXP var, SEXP mu2, SEXP var2) {
     BEGIN_RCPP
-    arma::mat mu_in   = as<arma::mat>(mu);
-    arma::mat var_in  = as<arma::mat>(var);
-    arma::mat mu2_in  = as<arma::mat>(mu2);
-    arma::mat var2_in = as<arma::mat>(var2);
+    arma::mat mu_in   = as<arma::mat>(mu);   // means for left sets:  n1 x d
+    arma::mat var_in  = as<arma::mat>(var);  // vars  for left sets:  n1 x d
+    arma::mat mu2_in  = as<arma::mat>(mu2);  // means for right sets: n2 x d
+    arma::mat var2_in = as<arma::mat>(var2); // vars  for right sets: n2 x d
 
     const uword n1 = mu_in.n_rows;
     const uword n2 = mu2_in.n_rows;
     const uword d  = mu_in.n_cols;
 
-    // Ratio terms: ratio_mat[i,j] = sum_k var[i,k] * inv_var2[j,k]
-    //              ratio_mat2[j,i] = sum_k var2[j,k] * inv_var[i,k]
-    mat inv_var  = 1.0 / var_in;
-    mat inv_var2 = 1.0 / var2_in;
+    // ratio_mat[i,j]  = sum_k var[i,k]  / var2[j,k]
+    // ratio_mat2[j,i] = sum_k var2[j,k] / var[i,k]
+    mat inv_var  = 1.0 / var_in;   // inv_var[i,k]  = 1 / var[i,k]
+    mat inv_var2 = 1.0 / var2_in;  // inv_var2[j,k] = 1 / var2[j,k]
     mat ratio_mat  = var_in  * inv_var2.t();  // n1 x n2
     mat ratio_mat2 = var2_in * inv_var.t();   // n2 x n1
 
-    // Row sums of mu (n1 x 1) and mu2 (n2 x 1)
-    vec mu_sq  = sum(mu_in  % mu_in,  1);
-    vec mu2_sq = sum(mu2_in % mu2_in, 1);
+    // mahal_ij[i,j] = sum_k (mu[i,k] - mu2[j,k])^2 / var2[j,k]
+    mat mu_sq_mat  = mu_in  % mu_in;   // n1 x d
+    mat mu2_sq_mat = mu2_in % mu2_in;  // n2 x d
+    mat mahal_ij =
+        mu_sq_mat * inv_var2.t() +
+        repmat(sum(mu2_sq_mat % inv_var2, 1).t(), n1, 1) -
+        2.0 * (mu_in * (mu2_in % inv_var2).t());
 
-    // Row sums of inv_var and inv_var2
-    vec iv_rsum  = sum(inv_var,  1);   // n1
-    vec iv2_rsum = sum(inv_var2, 1);   // n2
+    // mahal_ji[i,j] = sum_k (mu2[j,k] - mu[i,k])^2 / var[i,k]
+    // (right-set mean vs left-set mean, weighted by left-set variance)
+    mat mahal_ji =
+        inv_var * mu2_sq_mat.t() +
+        repmat(sum(mu_sq_mat % inv_var, 1), 1, n2) -
+        2.0 * ((mu_in % inv_var) * mu2_in.t());
 
-    // mahal_ij[i,j] = mu_sq[i]*iv2_rsum[j] + mu2_sq[j]*iv2_rsum[j]
-    //                 - 2 * sum_k mu[i,k] * mu2[j,k] * inv_var2[j,k]
-    // = outer(mu_sq, iv2_rsum) + outer(mu2_sq, iv2_rsum) - 2 * S
-    // where S[i,j] = sum_k mu[i,k] * mu2[j,k] * inv_var2[j,k]
-    //
-    // S = mu_in * (mu2_in .* inv_var2).t()   (BLAS matmul)
-    mat mu2_w = mu2_in;                         // n2 x d
-    for (uword j = 0; j < n2; j++) mu2_w.row(j) %= inv_var2.row(j);  // n2 x d
-    mat S = mu_in * mu2_w.t();                  // n1 x n2
-    mat mahal_ij = repmat(mu_sq, 1, n2) + repmat(mu2_sq.t(), n1, 1) - 2.0 * S;
-
-    // mahal_ji[i,j] = mu2_sq[i]*iv_rsum[j] + mu_sq[j]*iv_rsum[j]
-    //                 - 2 * sum_k mu2[i,k] * mu[j,k] * inv_var[j,k]
-    mat mu_w = mu_in;                           // n1 x d
-    for (uword i = 0; i < n1; i++) mu_w.row(i) %= inv_var.row(i);   // n1 x d
-    mat S2 = mu2_in * mu_w.t();                 // n2 x n1
-    mat mahal_ji = repmat(mu2_sq.t(), n1, 1) + repmat(mu_sq, 1, n2) - 2.0 * S2.t();
-
-    return Rcpp::wrap(0.5 * (ratio_mat + ratio_mat2.t() + mahal_ij + mahal_ji));
+    // -2 per dimension → subtract 2*d after the k-sums above
+    return Rcpp::wrap(
+        0.5 * (ratio_mat + ratio_mat2.t() + mahal_ij + mahal_ji - 2.0 * double(d))
+    );
     END_RCPP
 }
 

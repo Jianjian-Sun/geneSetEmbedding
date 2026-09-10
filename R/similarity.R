@@ -122,29 +122,26 @@ gsemb_set_gaussian_distance <- function(set_mu,
   if (metric == "w2") {
     mu_sq <- rowSums(mu * mu)
     mu2_sq <- rowSums(mu2 * mu2)
-    dmu2 <- mu_sq + outer(mu2_sq, mu_sq, "+") - 2 * mu %*% t(mu2)
+    dmu2 <- outer(mu_sq, mu2_sq, "+") - 2 * mu %*% t(mu2)
     sv <- sqrt(var)
     sv2 <- sqrt(var2)
-    var_term <- rowSums(sv * sv) + outer(rowSums(sv2 * sv2), rep(1, nrow(mu)), "+") - 2 * sv %*% t(sv2)
+    var_term <- outer(rowSums(sv * sv), rowSums(sv2 * sv2), "+") - 2 * sv %*% t(sv2)
     out <- dmu2 + var_term
   } else {
+    d <- ncol(mu)
     inv_var <- 1 / var
     inv_var2 <- 1 / var2
     ratio_mat <- var %*% t(inv_var2)
     ratio_mat2 <- var2 %*% t(inv_var)
-    mahal_ij <- (
-      t(t(rowSums(mu * mu)) %*% t(inv_var2)) +
-        t(t(rowSums(mu2 * mu2)) %*% t(inv_var2)) -
-        2 * mu %*% (t(inv_var2) %*% mu2)
-    )
-    mahal_ji <- (
-      t(t(rowSums(mu2 * mu2)) %*% t(inv_var)) +
-        t(t(rowSums(mu * mu)) %*% t(inv_var)) -
-        2 * mu2 %*% (t(inv_var) %*% mu)
-    )
-    out <- 0.5 * (ratio_mat + t(ratio_mat2) + mahal_ij + mahal_ji)
-  }
 
+    mu_sq <- mu * mu
+    mu2_sq <- mu2 * mu2
+    mahal_ij <- mu_sq %*% t(inv_var2) + outer(rep(1, nrow(mu)), rowSums(mu2_sq * inv_var2), "*") - 2 * (mu %*% t(mu2 * inv_var2))
+    mahal_ji <- inv_var %*% t(mu2_sq) + outer(rowSums(mu_sq * inv_var), rep(1, nrow(mu2)), "*") - 2 * ((mu * inv_var) %*% t(mu2))
+    out <- 0.5 * (ratio_mat + t(ratio_mat2) + mahal_ij + mahal_ji - 2 * d)
+
+  }
+  
   rownames(out) <- rownames(mu)
   colnames(out) <- rownames(mu2)
   out

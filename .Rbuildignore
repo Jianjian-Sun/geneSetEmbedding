@@ -9,3 +9,5 @@ Makefile
 ^CLAUDE\.md$
 ^\.github$
 ^scripts$
+^tmp$
+^tmp/

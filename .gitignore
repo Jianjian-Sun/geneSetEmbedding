@@ -5,6 +5,8 @@ gmon.out
 src/*.o
 src/*.so
 src/*.dylib
+src/*.dll
 
 # Local prototype / helper scripts (not published)
 scripts/
+tmp/
