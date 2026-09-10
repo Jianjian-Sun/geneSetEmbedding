@@ -64,8 +64,11 @@ test_that("High-level API runs end-to-end on CPU", {
   stats <- c(A = 2, B = 1, C = 0.5, D = -1, E = -2)
   ea <- gsemb_embedding_enrichment(stats, fit, gene_sets = gene_sets, nperm = 50, seed = 1, top_genes = 3)
   expect_true(is.data.frame(ea))
-  expect_true(all(c("ID", "ES", "pvalue", "p.adjust", "core_enrichment", "degree_beta") %in% names(ea)))
+  expect_true(all(c("ID", "ES", "pvalue", "p.adjust", "core_enrichment", "degree_beta", "status") %in% names(ea)))
   expect_equal(nrow(ea), 2)
+  expect_true(all(ea$status == "ok"))
+  expect_true(all(is.finite(ea$pvalue)))
+  expect_true(all(is.finite(ea$p.adjust)))
 
   gsea <- gsemb_weighted_gsea(
     stats, fit,

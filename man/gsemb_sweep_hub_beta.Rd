@@ -13,27 +13,27 @@ gsemb_sweep_hub_beta(
 )
 }
 \arguments{
-\item{gene_stats}{Named numeric vector; must be 0/1 when \code{mode = "ora"}.}
+\item{gene_stats}{Named numeric vector; must be 0/1 when `mode = "ora"`.}
 
-\item{x}{A \code{gsemb_embedding} object.}
+\item{x}{A `gsemb_embedding` object.}
 
 \item{betas}{Numeric vector of non-negative hub penalties.}
 
-\item{mode}{\code{"gsea"} or \code{"ora"}.}
+\item{mode}{`"gsea"` or `"ora"`.}
 
-\item{...}{Passed to \code{\link{gsemb_weighted_gsea}} or \code{\link{gsemb_weighted_ora}}
-(e.g. \code{gene_sets}, \code{nperm}, \code{seed}, \code{restrict_to_members}).}
+\item{...}{Passed to [gsemb_weighted_gsea()] or [gsemb_weighted_ora()]
+(e.g. `gene_sets`, `nperm`, `seed`, `restrict_to_members`).}
 }
 \value{
 A list with:
-\describe{
-\item{results}{Named list of per-beta data.frames}
-\item{combined}{Row-bound long table}
-\item{compare}{Wide ES table plus \code{deltaES_vs0_*} columns}
-}
+  \describe{
+    \item{results}{Named list of per-beta data.frames}
+    \item{combined}{Row-bound long table}
+    \item{compare}{Wide ES table plus `deltaES_vs0_*` columns}
+  }
 }
 \description{
-Runs Weighted-GSEA or Weighted-ORA for each beta in \code{betas} (default
-\code{c(0, 0.25, 0.5, 1)} as commonly used in grant-style probes; any
+Runs Weighted-GSEA or Weighted-ORA for each beta in `betas` (default
+`c(0, 0.25, 0.5, 1)` as commonly used in grant-style probes; any
 non-negative values are allowed).
 }

@@ -223,6 +223,34 @@
   es <- as.numeric(crossprod(W, stats_vec))
   names(es) <- colnames(W)
   n_es <- length(es)
+  set_ids <- colnames(W)
+
+  set_size <- rep(NA_integer_, n_es)
+  if (!is.null(gene_sets)) {
+    set_size <- vapply(set_ids, function(sid) {
+      if (!sid %in% names(gene_sets)) {
+        return(NA_integer_)
+      }
+      length(intersect(gene_sets[[sid]], genes))
+    }, integer(1))
+  }
+
+  # Distinguish untestable sets from non-significant ones (gap doc §2.3).
+  # Priority: params > coverage > weights > ok.
+  w_col_sum <- colSums(W)
+  status <- character(n_es)
+  for (j in seq_len(n_es)) {
+    if (!all(is.finite(mu[j, ])) || !all(is.finite(var[j, ]))) {
+      status[j] <- "untestable_params"
+    } else if (!is.null(gene_sets) && !is.na(set_size[j]) && set_size[j] == 0L) {
+      status[j] <- "untestable_coverage"
+    } else if (!is.finite(w_col_sum[j]) || w_col_sum[j] <= 0) {
+      status[j] <- "untestable_weights"
+    } else {
+      status[j] <- "ok"
+    }
+  }
+  testable <- status == "ok"
 
   z <- rep(NA_real_, n_es)
   pvals <- rep(NA_real_, n_es)
@@ -235,39 +263,42 @@
 
     es_mat <- matrix(es, nrow = nperm, ncol = n_es, byrow = TRUE)
     if (alternative == "greater") {
-      pvals <- colMeans(null_scores >= es_mat)
+      k <- colSums(null_scores >= es_mat)
     } else if (alternative == "less") {
-      pvals <- colMeans(null_scores <= es_mat)
+      k <- colSums(null_scores <= es_mat)
     } else {
       cen_mat <- matrix(null_mean, nrow = nperm, ncol = n_es, byrow = TRUE)
       shift_mat <- matrix(abs(es - null_mean), nrow = nperm, ncol = n_es, byrow = TRUE)
-      pvals <- colMeans(abs(null_scores - cen_mat) >= shift_mat)
+      k <- colSums(abs(null_scores - cen_mat) >= shift_mat)
     }
-    pvals <- pmax(pvals, 1 / nperm)
+    # Application / Phipson-Smyth style Monte Carlo p-value
+    pvals <- (k + 1) / (nperm + 1)
   }
 
-  set_size <- rep(NA_integer_, n_es)
-  if (!is.null(gene_sets)) {
-    set_size <- vapply(names(es), function(sid) {
-      if (!sid %in% names(gene_sets)) {
-        return(NA_integer_)
-      }
-      length(intersect(gene_sets[[sid]], genes))
-    }, integer(1))
-  }
+  # Untestable sets must not look like ES=0 / non-significant.
+  es[!testable] <- NA_real_
+  z[!testable] <- NA_real_
+  pvals[!testable] <- NA_real_
 
-  core <- rep(NA_character_, length(es))
+  core <- rep(NA_character_, n_es)
   if (top_genes > 0L) {
-    for (j in seq_along(es)) {
+    for (j in seq_len(n_es)) {
+      if (!testable[j]) {
+        next
+      }
       wj <- W[, j]
-      ord <- order(wj, decreasing = TRUE)
+      pos <- which(wj > 0)
+      if (length(pos) == 0L) {
+        next
+      }
+      ord <- pos[order(wj[pos], decreasing = TRUE)]
       ord <- ord[seq_len(min(top_genes, length(ord)))]
       core[j] <- paste0(rownames(W)[ord], collapse = "/")
     }
   }
 
   data.frame(
-    ID = names(es),
+    ID = set_ids,
     ES = as.numeric(es),
     z = as.numeric(z),
     pvalue = as.numeric(pvals),
@@ -275,6 +306,7 @@
     setSize = as.integer(set_size),
     core_enrichment = core,
     degree_beta = as.numeric(degree_beta),
+    status = status,
     stringsAsFactors = FALSE
   )
 }
@@ -434,7 +466,11 @@
 
   out <- do.call(rbind, parts)
   rownames(out) <- NULL
-  out$p.adjust <- stats::p.adjust(out$pvalue, method = "BH")
+  out$p.adjust <- NA_real_
+  ok <- !is.null(out$status) & out$status == "ok" & is.finite(out$pvalue)
+  if (any(ok)) {
+    out$p.adjust[ok] <- stats::p.adjust(out$pvalue[ok], method = "BH")
+  }
   out
 }
 
@@ -462,7 +498,8 @@
 #' @param alternative `"two.sided"`, `"greater"`, or `"less"`.
 #' @param seed Random seed for permutations.
 #' @param eps Numerical floor for variances / empty columns.
-#' @param top_genes Number of top-weighted genes reported in `core_enrichment`.
+#' @param top_genes Number of top positive-weight genes reported in
+#'   `core_enrichment` (not a classical GSEA leading edge).
 #' @param restrict_to_members If `TRUE`, only original set members enter that
 #'   set's soft membership (non-members get weight 0). Default `FALSE`.
 #' @param degree_beta Hub penalty exponent for `w / degree^beta`
@@ -470,7 +507,10 @@
 #' @param adj Optional adjacency for degrees; defaults to `x$adj`.
 #'
 #' @return A data.frame with `ID`, `ES`, `z`, `pvalue`, `p.adjust`, `setSize`,
-#'   `core_enrichment`, and `degree_beta`.
+#'   `core_enrichment`, `degree_beta`, and `status`. Untestable sets
+#'   (`untestable_params`, `untestable_coverage`, or `untestable_weights`) have
+#'   `ES`/`z`/`pvalue`/`p.adjust`/`core_enrichment` as `NA` and are excluded
+#'   from BH; only `status == "ok"` rows enter `p.adjust`.
 #' @seealso [gsemb_weighted_gsea()], [gsemb_weighted_ora()], [gsemb_sweep_hub_beta()]
 #' @examples
 #' \dontrun{
@@ -517,12 +557,14 @@ gsemb_embedding_enrichment <- function(gene_stats,
 
 #' Weighted-GSEA with soft membership weights
 #'
-#' Continuous gene statistics \(r_g\) (e.g. t-statistic or logFC) yield
-#' \(T_S = \sum_g w_{gS} r_g\). Optional hub correction uses
-#' \(w'_{gS} \propto w_{gS} / \mathrm{degree}(g)^{\beta}\).
+#' Continuous gene statistics \code{r_g} (e.g. t-statistic or logFC) yield
+#' \code{T_S = sum_g w_gS * r_g}. Optional hub correction reweights by
+#' \code{w_gS / degree(g)^beta}.
 #'
 #' @inheritParams gsemb_embedding_enrichment
 #' @param r Named numeric vector of continuous gene-level statistics.
+#' @return Same columns as [gsemb_embedding_enrichment()], including `status`;
+#'   BH is applied only to testable (`status == "ok"`) rows.
 #' @export
 gsemb_weighted_gsea <- function(r,
                                 x,
@@ -561,12 +603,14 @@ gsemb_weighted_gsea <- function(r,
 
 #' Weighted-ORA with soft membership weights
 #'
-#' Binary labels \(y_g \in \{0,1\}\) (e.g. differential-expression indicators)
-#' yield \(T_S = \sum_g w_{gS} y_g\). Same soft-weight / hub / permutation
-#' machinery as [gsemb_weighted_gsea()].
+#' Binary labels \code{y_g} in \code{c(0, 1)} (e.g. differential-expression
+#' indicators) yield \code{T_S = sum_g w_gS * y_g}. Same soft-weight / hub /
+#' permutation machinery as [gsemb_weighted_gsea()].
 #'
 #' @inheritParams gsemb_embedding_enrichment
-#' @param y Named numeric vector with values in `{0, 1}` only.
+#' @param y Named numeric vector with values in \code{c(0, 1)} only.
+#' @return Same columns as [gsemb_embedding_enrichment()], including `status`;
+#'   BH is applied only to testable (`status == "ok"`) rows.
 #' @export
 gsemb_weighted_ora <- function(y,
                                x,

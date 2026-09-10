@@ -22,39 +22,44 @@ gsemb_weighted_ora(
 )
 }
 \arguments{
-\item{y}{Named numeric vector with values in \{0, 1\} only.}
+\item{y}{Named numeric vector with values in \code{c(0, 1)} only.}
 
-\item{x}{A \code{gsemb_embedding} object.}
+\item{x}{A `gsemb_embedding` object.}
 
 \item{sets}{Optional character vector of set IDs to test.}
 
 \item{gene_sets}{Named list of gene-set members (set-size reporting; required
-when \code{restrict_to_members = TRUE}).}
+when `restrict_to_members = TRUE`).}
 
-\item{score}{\code{"loglik"} or \code{"neg_mahalanobis"}.}
+\item{score}{`"loglik"` or `"neg_mahalanobis"`.}
 
 \item{temperature}{Softmax temperature for soft membership weights.}
 
 \item{nperm}{Number of permutations for the null distribution.}
 
-\item{alternative}{\code{"two.sided"}, \code{"greater"}, or \code{"less"}.}
+\item{alternative}{`"two.sided"`, `"greater"`, or `"less"`.}
 
 \item{seed}{Random seed for permutations.}
 
 \item{eps}{Numerical floor for variances / empty columns.}
 
-\item{top_genes}{Number of top-weighted genes reported in \code{core_enrichment}.}
+\item{top_genes}{Number of top positive-weight genes reported in
+`core_enrichment` (not a classical GSEA leading edge).}
 
-\item{restrict_to_members}{If \code{TRUE}, only original set members enter that
-set's soft membership (non-members get weight 0). Default \code{FALSE}.}
+\item{restrict_to_members}{If `TRUE`, only original set members enter that
+set's soft membership (non-members get weight 0). Default `FALSE`.}
 
-\item{degree_beta}{Hub penalty exponent for \code{w / degree^beta}
-(default \code{0} = no correction). Typical probes: \code{0, 0.25, 0.5, 1}.}
+\item{degree_beta}{Hub penalty exponent for `w / degree^beta`
+(default `0` = no correction). Typical probes: `0, 0.25, 0.5, 1`.}
 
-\item{adj}{Optional adjacency for degrees; defaults to \code{x$adj}.}
+\item{adj}{Optional adjacency for degrees; defaults to `x$adj`.}
+}
+\value{
+Same columns as [gsemb_embedding_enrichment()], including `status`;
+  BH is applied only to testable (`status == "ok"`) rows.
 }
 \description{
-Binary labels \(y_g \in \{0,1\}\) (e.g. differential-expression indicators)
-yield \(T_S = \sum_g w_{gS} y_g\). Same soft-weight / hub / permutation
-machinery as \code{\link{gsemb_weighted_gsea}}.
+Binary labels \code{y_g} in \code{c(0, 1)} (e.g. differential-expression
+indicators) yield \code{T_S = sum_g w_gS * y_g}. Same soft-weight / hub /
+permutation machinery as [gsemb_weighted_gsea()].
 }

@@ -24,47 +24,62 @@ gsemb_embedding_enrichment(
 \arguments{
 \item{gene_stats}{Named numeric vector of gene-level statistics.}
 
-\item{x}{A \code{gsemb_embedding} object.}
+\item{x}{A `gsemb_embedding` object.}
 
 \item{sets}{Optional character vector of set IDs to test.}
 
 \item{gene_sets}{Named list of gene-set members (set-size reporting; required
-when \code{restrict_to_members = TRUE}).}
+when `restrict_to_members = TRUE`).}
 
-\item{score}{\code{"loglik"} or \code{"neg_mahalanobis"}.}
+\item{score}{`"loglik"` or `"neg_mahalanobis"`.}
 
 \item{temperature}{Softmax temperature for soft membership weights.}
 
 \item{nperm}{Number of permutations for the null distribution.}
 
-\item{alternative}{\code{"two.sided"}, \code{"greater"}, or \code{"less"}.}
+\item{alternative}{`"two.sided"`, `"greater"`, or `"less"`.}
 
 \item{seed}{Random seed for permutations.}
 
 \item{eps}{Numerical floor for variances / empty columns.}
 
-\item{top_genes}{Number of top-weighted genes reported in \code{core_enrichment}.}
+\item{top_genes}{Number of top positive-weight genes reported in
+`core_enrichment` (not a classical GSEA leading edge).}
 
-\item{restrict_to_members}{If \code{TRUE}, only original set members enter that
-set's soft membership (non-members get weight 0). Default \code{FALSE}.}
+\item{restrict_to_members}{If `TRUE`, only original set members enter that
+set's soft membership (non-members get weight 0). Default `FALSE`.}
 
-\item{degree_beta}{Hub penalty exponent for \code{w / degree^beta}
-(default \code{0} = no correction). Typical probes: \code{0, 0.25, 0.5, 1}.}
+\item{degree_beta}{Hub penalty exponent for `w / degree^beta`
+(default `0` = no correction). Typical probes: `0, 0.25, 0.5, 1`.}
 
-\item{adj}{Optional adjacency for degrees; defaults to \code{x$adj}.}
+\item{adj}{Optional adjacency for degrees; defaults to `x$adj`.}
 }
 \value{
-A data.frame with \code{ID}, \code{ES}, \code{z}, \code{pvalue}, \code{p.adjust}, \code{setSize},
-\code{core_enrichment}, and \code{degree_beta}.
+A data.frame with `ID`, `ES`, `z`, `pvalue`, `p.adjust`, `setSize`,
+  `core_enrichment`, `degree_beta`, and `status`. Untestable sets
+  (`untestable_params`, `untestable_coverage`, or `untestable_weights`) have
+  `ES`/`z`/`pvalue`/`p.adjust`/`core_enrichment` as `NA` and are excluded
+  from BH; only `status == "ok"` rows enter `p.adjust`.
 }
 \description{
 Computes set enrichment scores from gene-level statistics using soft
 membership weights derived from diagonal Gaussian set embeddings.
 By default this matches the historical behaviour:
-\code{restrict_to_members = FALSE} and \code{degree_beta = 0} (no hub correction).
-Prefer \code{\link{gsemb_weighted_gsea}} / \code{\link{gsemb_weighted_ora}} for the explicit
+`restrict_to_members = FALSE` and `degree_beta = 0` (no hub correction).
+Prefer [gsemb_weighted_gsea()] / [gsemb_weighted_ora()] for the explicit
 Weighted-GSEA / Weighted-ORA interfaces.
 }
+\examples{
+\dontrun{
+enrich <- gsemb_embedding_enrichment(
+  gene_stats = stats,
+  x = fit,
+  gene_sets = gene_sets,
+  nperm = 100,
+  alternative = "greater"
+)
+}
+}
 \seealso{
-\code{\link{gsemb_weighted_gsea}}, \code{\link{gsemb_weighted_ora}}, \code{\link{gsemb_sweep_hub_beta}}
+[gsemb_weighted_gsea()], [gsemb_weighted_ora()], [gsemb_sweep_hub_beta()]
 }
