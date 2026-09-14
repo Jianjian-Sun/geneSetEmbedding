@@ -10,3 +10,4 @@ src/*.dll
 # Local prototype / helper scripts (not published)
 scripts/
 tmp/
+.worktrees/
