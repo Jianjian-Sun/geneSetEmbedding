@@ -7,7 +7,15 @@ src/*.so
 src/*.dylib
 src/*.dll
 
-# Local prototype / helper scripts (not published)
-scripts/
+# Local prototype / helper scripts (not published by default)
+scripts/*
+!scripts/real_cohort/
+!scripts/real_cohort/**
+!scripts/tests/
+!scripts/tests/**
+!scripts/landmark_*.R
 tmp/
 .worktrees/
+
+# Large local experiment caches (force-add any small reports if needed)
+test_results/

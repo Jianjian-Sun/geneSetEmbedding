@@ -153,10 +153,20 @@ RcppExport SEXP _geneSetEmbedding_rcpp_enrichment_permutations(SEXP W, SEXP stat
 // R_init hook — register all native routines
 // ===========================================================================
 
+RcppExport SEXP _geneSetEmbedding_kmedoids_hop(SEXP i_,
+                                               SEXP p_,
+                                               SEXP x_,
+                                               SEXP k_,
+                                               SEXP seed_,
+                                               SEXP m_,
+                                               SEXP max_iter_,
+                                               SEXP weighted_);
+
 static const R_CallMethodDef CallEntries[] = {
     {"_geneSetEmbedding_w2_distance",                (DL_FUNC) &_geneSetEmbedding_w2_distance,                4},
     {"_geneSetEmbedding_sym_kl_distance",             (DL_FUNC) &_geneSetEmbedding_sym_kl_distance,             4},
     {"_geneSetEmbedding_rcpp_enrichment_permutations", (DL_FUNC) &_geneSetEmbedding_rcpp_enrichment_permutations, 4},
+    {"_geneSetEmbedding_kmedoids_hop",               (DL_FUNC) &_geneSetEmbedding_kmedoids_hop,               8},
     {NULL, NULL, 0}
 };
 

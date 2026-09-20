@@ -11,5 +11,10 @@ Compute network diffusion features, learn gene embeddings, derive gene set Gauss
 \author{
 \strong{Maintainer}: enrichit contributors \email{noreply@example.com}
 
+Authors:
+\itemize{
+  \item enrichit contributors \email{noreply@example.com}
+}
+
 }
 \keyword{internal}

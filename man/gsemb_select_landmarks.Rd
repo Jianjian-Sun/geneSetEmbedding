@@ -4,22 +4,56 @@
 \alias{gsemb_select_landmarks}
 \title{Select landmark nodes for diffusion features}
 \usage{
-gsemb_select_landmarks(adj, k = 128, method = c("degree", "random"), seed = 1)
+gsemb_select_landmarks(
+  adj,
+  k = 128,
+  method = c("degree", "weighted_degree", "random", "betweenness",
+    "weighted_betweenness", "kmedoids", "weighted_kmedoids"),
+  seed = 1,
+  betweenness_cutoff = 4,
+  kmedoids_m = 50,
+  kmedoids_max_iter = 10
+)
 }
 \arguments{
 \item{adj}{Adjacency matrix with rownames as node IDs.}
 
 \item{k}{Number of landmarks to select (capped at number of nodes).}
 
-\item{method}{\code{"degree"} or \code{"random"}.}
+\item{method}{Landmark selection method: \code{"degree"} counts incident
+nonzero edges, \code{"weighted_degree"} sums incident edge weights,
+\code{"random"} samples nodes uniformly, \code{"betweenness"} ranks by
+unweighted shortest-path betweenness on \code{adj != 0},
+\code{"weighted_betweenness"} ranks by betweenness where edge lengths are
+\code{1 / weight} (high confidence / weight preferred as shorter),
+\code{"kmedoids"} selects hop-distance medoids on the largest connected
+component of \code{adj != 0}, and \code{"weighted_kmedoids"} uses the same
+procedure with edge costs \code{1 / weight}.}
 
-\item{seed}{Random seed used when \code{method="random"}.}
+\item{seed}{Random seed used when \code{method="random"} or either
+K-Medoids method (farthest-first start).}
+
+\item{betweenness_cutoff}{Path-length cutoff for
+\code{igraph::betweenness} when \code{method} is \code{"betweenness"} or
+\code{"weighted_betweenness"}. Default \code{4}. For unweighted graphs this
+is hop length; for weighted it is on the sum of edge costs
+(\code{1/weight}). Use \code{-1} for exact (untruncated) betweenness.
+Ignored for other methods.}
+
+\item{kmedoids_m}{Per-cluster candidate cap (degree Top-M for
+\code{"kmedoids"}, strength Top-M for \code{"weighted_kmedoids"}) for
+restricted PAM. Ignored for other methods.}
+
+\item{kmedoids_max_iter}{Maximum PAM passes for either K-Medoids method.
+Ignored for other methods.}
 }
 \value{
 A character vector of landmark node IDs.
 }
 \description{
-Choose landmark nodes either by degree (highest first) or random sampling.
+Choose landmark nodes by degree, weighted degree (node strength), random
+sampling, betweenness centrality (unweighted or weight-aware), or K-Medoids
+(hop distance or \code{1/weight} path costs; farthest-first then restricted PAM).
 }
 \examples{
 # Build a small graph
@@ -33,7 +67,38 @@ adj <- gsemb_build_graph(edges)
 lm_deg <- gsemb_select_landmarks(adj, k = 2, method = "degree")
 lm_deg
 
+# Select 2 landmarks by weighted degree (node strength)
+lm_weighted <- gsemb_select_landmarks(adj, k = 2, method = "weighted_degree")
+lm_weighted
+
 # Select 2 landmarks randomly
 lm_rnd <- gsemb_select_landmarks(adj, k = 2, method = "random", seed = 42)
 lm_rnd
+
+# Select by truncated betweenness (default cutoff = 4)
+lm_bc <- gsemb_select_landmarks(adj, k = 2, method = "betweenness")
+lm_bc
+
+# Weight-aware betweenness (edge cost = 1/weight)
+lm_wbc <- gsemb_select_landmarks(adj, k = 2, method = "weighted_betweenness")
+lm_wbc
+
+# Hop-distance K-Medoids on a path (k = 1 converges to the center)
+path <- data.frame(
+  node1 = c("A", "B", "C", "D"),
+  node2 = c("B", "C", "D", "E")
+)
+gsemb_select_landmarks(gsemb_build_graph(path), k = 1, method = "kmedoids")
+
+# Weight-aware K-Medoids (edge cost = 1/weight)
+wpath <- data.frame(
+  node1 = c("A", "B", "A", "D"),
+  node2 = c("B", "C", "D", "C"),
+  weight = c(100, 100, 1, 1)
+)
+gsemb_select_landmarks(
+  gsemb_build_graph(wpath, weight = "weight"),
+  k = 1,
+  method = "weighted_kmedoids"
+)
 }
