@@ -1,7 +1,36 @@
 library(testthat)
 library(geneSetEmbedding)
 
-test_that("weighted degree selects nodes by incident edge-weight sum", {
+test_that("gsemb_fit forwards landmark_method into landmark selection", {
+  edges <- data.frame(
+    node1 = c("A", "B", "C", "D"),
+    node2 = c("B", "C", "D", "E"),
+    weight = c(1, 1, 1, 1)
+  )
+  gene_sets <- list(S = c("A", "B", "C"))
+  fit_one <- function(landmark_method) {
+    gsemb_fit(
+      edges,
+      gene_sets,
+      weight = "weight",
+      method = "svd",
+      dim = 1,
+      k = 1,
+      max_iter = 10,
+      landmark_method = landmark_method,
+      betweenness_cutoff = -1,
+      kmedoids_m = 10
+    )
+  }
+
+  expect_identical(fit_one("degree")$landmarks, "B")
+  expect_identical(fit_one("degree")$landmark_method, "degree")
+  expect_identical(fit_one("betweenness")$landmarks, "C")
+  expect_identical(fit_one("kmedoids")$landmarks, "C")
+  expect_error(fit_one("weighted_degree"), "should be one of")
+})
+
+test_that("degree selects nodes by incident edge-weight sum", {
   edges <- data.frame(
     node1 = c("A", "A", "D", "D", "D"),
     node2 = c("B", "C", "B", "C", "E"),
@@ -11,10 +40,6 @@ test_that("weighted degree selects nodes by incident edge-weight sum", {
 
   expect_identical(
     gsemb_select_landmarks(adj, k = 1, method = "degree"),
-    "D"
-  )
-  expect_identical(
-    gsemb_select_landmarks(adj, k = 1, method = "weighted_degree"),
     "A"
   )
 })
@@ -38,7 +63,7 @@ test_that("betweenness prefers bridge nodes on a path graph", {
   )
 })
 
-test_that("weighted_betweenness prefers the high-weight path bridge", {
+test_that("betweenness prefers the high-weight path bridge", {
   skip_if_not_installed("igraph")
   # Two A--*--C paths: high weights via B, low via D → weighted picks B
   edges <- data.frame(
@@ -52,7 +77,7 @@ test_that("weighted_betweenness prefers the high-weight path bridge", {
     gsemb_select_landmarks(
       adj,
       k = 1,
-      method = "weighted_betweenness",
+      method = "betweenness",
       betweenness_cutoff = -1
     ),
     "B"
@@ -134,24 +159,7 @@ test_that("kmedoids larger than the largest CC returns that component", {
   expect_setequal(lm, c("A", "B", "C"))
 })
 
-test_that("weighted_kmedoids with unit weights matches kmedoids", {
-  skip_if_not_installed("igraph")
-  edges <- data.frame(
-    node1 = c("A", "B", "C", "D"),
-    node2 = c("B", "C", "D", "E"),
-    weight = c(1, 1, 1, 1)
-  )
-  adj <- gsemb_build_graph(edges, weight = "weight", directed = FALSE)
-
-  expect_identical(
-    gsemb_select_landmarks(adj, k = 2, method = "kmedoids", seed = 3, kmedoids_m = 10),
-    gsemb_select_landmarks(
-      adj, k = 2, method = "weighted_kmedoids", seed = 3, kmedoids_m = 10
-    )
-  )
-})
-
-test_that("weighted_kmedoids prefers endpoints of the high-weight edge", {
+test_that("kmedoids prefers endpoints of the high-weight edge", {
   skip_if_not_installed("igraph")
   # Triangle: A-C is heavy. Hop costs are tied; weighted optima are A or C (not B).
   edges <- data.frame(
@@ -163,7 +171,7 @@ test_that("weighted_kmedoids prefers endpoints of the high-weight edge", {
 
   picks <- unique(vapply(1:30, function(s) {
     gsemb_select_landmarks(
-      adj, k = 1, method = "weighted_kmedoids", seed = s, kmedoids_m = 10
+      adj, k = 1, method = "kmedoids", seed = s, kmedoids_m = 10
     )
   }, character(1)))
   expect_true(all(picks %in% c("A", "C")))

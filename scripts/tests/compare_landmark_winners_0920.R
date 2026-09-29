@@ -9,7 +9,7 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 # degree run never saved landmarks RDS; recompute Top-K (cheap).
 adj_high <- readRDS(file.path(root, "test_results", "high_conf_graph.rds"))
-wd_high <- gsemb_select_landmarks(adj_high, k = 128L, method = "weighted_degree")
+wd_high <- gsemb_select_landmarks(adj_high, k = 128L, method = "degree")
 
 bet <- readRDS(file.path(root, "test_results", "betweenness", "betweenness_landmarks.rds"))
 km <- readRDS(file.path(root, "test_results", "kmedoids", "kmedoids_landmarks.rds"))

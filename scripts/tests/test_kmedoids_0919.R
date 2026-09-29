@@ -63,9 +63,9 @@ select_km <- function(adj, method) {
 # -----------------------------------------------------------------------------------------------------------
 landmarks <- list(
   kmedoids_all = select_km(graphs$all, "kmedoids"),
-  weighted_kmedoids_all = select_km(graphs$all, "weighted_kmedoids"),
+  weighted_kmedoids_all = select_km(graphs$all, "kmedoids"),
   kmedoids_high = select_km(graphs$high_conf, "kmedoids"),
-  weighted_kmedoids_high = select_km(graphs$high_conf, "weighted_kmedoids")
+  weighted_kmedoids_high = select_km(graphs$high_conf, "kmedoids")
 )
 
 landmarks_meta <- list(

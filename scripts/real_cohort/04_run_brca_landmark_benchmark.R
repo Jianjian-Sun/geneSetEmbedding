@@ -112,7 +112,7 @@ betweenness_obj <- readRDS(betweenness_rds)
 kmedoids_obj <- readRDS(kmedoids_rds)
 landmarks <- list(
   weighted_degree_high = gsemb_select_landmarks(
-    adj_high, k = k, method = "weighted_degree", seed = seed
+    adj_high, k = k, method = "degree", seed = seed
   ),
   weighted_betweenness_high = map_ensp_to_symbols(
     betweenness_obj$landmarks$weighted_betweenness_high, protein_info

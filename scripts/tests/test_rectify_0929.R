@@ -1,10 +1,14 @@
 devtools::load_all()
 # -----------------------------------------------------------------------------------------------------------
 # Load the PPI edges and build the graphs/select landmarks
-ppi_links_file <- "E:/genesetembedding/step1/STRING/9606.protein.links.v12.0.txt"
+ppi_links_file <- "/mnt/d/genesetembedding/step1/STRING/9606.protein.links.v12.0.txt"
 ppi_edges <- read.table(ppi_links_file, header = TRUE, sep = " ", stringsAsFactors = FALSE)
-head(ppi_edges)
-ppi_edges_high_conf <- subset(ppi_edges, combined_score > 700)
+#head(ppi_edges)
+ppi_edges <- ppi_edges[ppi_edges$protein1 != ppi_edges$protein2, ] # 删除自环 得到的结果是0个自环
+ppi_edges <- ppi_edges[ppi_edges$protein1 < ppi_edges$protein2, ] #去掉反向重复边 保留了6857702条边
+#nrow(ppi_edges)
+ppi_edges_high_conf <- subset(ppi_edges, combined_score > 700) # 过滤低置信度边 472000条边(没去掉的时候) -> 236000条边(去掉反向重复边之后)
+#nrow(ppi_edges_high_conf)
 
 ppi_edges_list <- list(
     all = ppi_edges, 

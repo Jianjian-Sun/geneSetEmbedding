@@ -23,9 +23,9 @@ landmark_dropout <- function(landmarks,
   if (is.null(selectors)) {
     selectors <- list(
       degree_all = list(graph = "all", method = "degree"),
-      weighted_degree_all = list(graph = "all", method = "weighted_degree"),
+      weighted_degree_all = list(graph = "all", method = "degree"),
       degree_high = list(graph = "high", method = "degree"),
-      weighted_degree_high = list(graph = "high", method = "weighted_degree")
+      weighted_degree_high = list(graph = "high", method = "degree")
     )
   }
   selectors <- selectors[intersect(names(selectors), names(landmarks))]

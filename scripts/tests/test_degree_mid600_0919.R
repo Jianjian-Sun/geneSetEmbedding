@@ -46,9 +46,9 @@ saveRDS(graphs$mid, file.path(mid_dir, "mid600_graph.rds"))
 
 landmarks <- list(
   degree_mid = gsemb_select_landmarks(graphs$mid, k = k, method = "degree"),
-  weighted_degree_mid = gsemb_select_landmarks(graphs$mid, k = k, method = "weighted_degree"),
+  weighted_degree_mid = gsemb_select_landmarks(graphs$mid, k = k, method = "degree"),
   degree_high = gsemb_select_landmarks(graphs$high, k = k, method = "degree"),
-  weighted_degree_high = gsemb_select_landmarks(graphs$high, k = k, method = "weighted_degree")
+  weighted_degree_high = gsemb_select_landmarks(graphs$high, k = k, method = "degree")
 )
 
 saveRDS(

@@ -23,20 +23,26 @@ graphs <- lapply(ppi_edges_list, function(edges) {
 
 out_dir <- "E:/genesetembedding/geneSetEmbedding/.worktrees/weighted-degree-landmarks/test_results"
 betweenness_dir <- file.path(out_dir, "betweenness")
-dir.create(betweenness_dir, recursive = TRUE, showWarnings = FALSE)
+#dir.create(betweenness_dir, recursive = TRUE, showWarnings = FALSE)
 
 for (i in names(graphs)) {
   saveRDS(graphs[[i]], file.path(out_dir, paste0(i, "_graph.rds")))
 }
 
+
 betweenness_graph <- graphs$all
 weighted_betweenness_graph <- graphs$all
-betweenness_high_conf_graph <- graphs$high_conf
-weighted_betweenness_high_conf_graph <- graphs$high_conf
+betweenness_high_conf_graph <- high_conf_graph$high_conf
+weighted_betweenness_high_conf_graph <- high_conf_graph$high_conf
+# 复用
+#betweenness_graph <- readRDS(file.path(out_dir, "all_graph.rds"))
+#weighted_betweenness_graph <- betweenness_graph
+#betweenness_high_conf_graph <- readRDS(file.path(out_dir, "high_conf_graph.rds"))
+#weighted_betweenness_high_conf_graph <- betweenness_high_conf_graph
 
 k <- 128L
-# package default; kept explicit for the script
-betweenness_cutoff <- 4
+# package default is exact betweenness
+betweenness_cutoff <- -1
 
 landmarks <- list(
   betweenness_all = gsemb_select_landmarks(
@@ -44,7 +50,7 @@ landmarks <- list(
     betweenness_cutoff = betweenness_cutoff
   ),
   weighted_betweenness_all = gsemb_select_landmarks(
-    weighted_betweenness_graph, k = k, method = "weighted_betweenness",
+    weighted_betweenness_graph, k = k, method = "betweenness",
     betweenness_cutoff = betweenness_cutoff
   ),
   betweenness_high = gsemb_select_landmarks(
@@ -52,7 +58,7 @@ landmarks <- list(
     betweenness_cutoff = betweenness_cutoff
   ),
   weighted_betweenness_high = gsemb_select_landmarks(
-    weighted_betweenness_high_conf_graph, k = k, method = "weighted_betweenness",
+    weighted_betweenness_high_conf_graph, k = k, method = "betweenness",
     betweenness_cutoff = betweenness_cutoff
   )
 )
@@ -84,9 +90,17 @@ write.csv(
 #   obj <- readRDS(".../test_results/betweenness/betweenness_landmarks.rds")
 #   landmarks <- obj$landmarks
 # -----------------------------------------------------------------------------------------------------------
+# Calculate the landmark jaccard similarity
+# 两者值越大证明相似度越高
+source("scripts/landmark_jaccard.R")
+out1 <- landmark_jaccard(landmarks)
+print(out1)
+write.csv(out1, file.path(betweenness_dir, "betweenness_landmark_jaccard.csv"))
+# -----------------------------------------------------------------------------------------------------------
+# calculate the landmark spearman correlation （-1，1）
 # Full-node scores for Spearman (same formulas as gsemb_select_landmarks)
 # 这一步暂时不做吧 介数中心算这个好像不划算 时间太长了
-betweenness_scores <- function(adj, weighted = FALSE, cutoff = 4) {
+betweenness_scores <- function(adj, weighted = FALSE, cutoff = -1) {
   nodes <- rownames(adj)
   if (is.null(nodes)) stop("adj must have rownames")
   if (!weighted) {
@@ -105,17 +119,6 @@ betweenness_scores <- function(adj, weighted = FALSE, cutoff = 4) {
   }
   setNames(as.numeric(bc), nodes)
 }
-
-# -----------------------------------------------------------------------------------------------------------
-# Calculate the landmark jaccard similarity
-# 两者值越大证明相似度越高
-source("scripts/landmark_jaccard.R")
-out1 <- landmark_jaccard(landmarks)
-print(out1)
-write.csv(out1, file.path(betweenness_dir, "betweenness_landmark_jaccard.csv"))
-# -----------------------------------------------------------------------------------------------------------
-# calculate the landmark spearman correlation （-1，1）
-# 值越大证明两者越相关
 scores <- list(
   betweenness_all = betweenness_scores(
     betweenness_graph, weighted = FALSE, cutoff = betweenness_cutoff
@@ -152,13 +155,13 @@ write.csv(out4, file.path(betweenness_dir, "betweenness_landmark_coverage.csv"))
 # -----------------------------------------------------------------------------------------------------------
 # calculate the landmark dropout 5% edge-drop Jaccard stability
 # 值越大证明稳定性越高
-# repeats=20（非 degree 的 100）：每次需重算介数，全边图上 100 次过慢
+# repeats=20（非 degree 的 100）：每次需重算介数，全边图上 100 次过慢 这个也没做
 source("scripts/landmark_dropout.R")
 selectors <- list(
   betweenness_all = list(graph = "all", method = "betweenness"),
-  weighted_betweenness_all = list(graph = "all", method = "weighted_betweenness"),
+  weighted_betweenness_all = list(graph = "all", method = "betweenness"),
   betweenness_high = list(graph = "high", method = "betweenness"),
-  weighted_betweenness_high = list(graph = "high", method = "weighted_betweenness")
+  weighted_betweenness_high = list(graph = "high", method = "betweenness")
 )
 out5 <- landmark_dropout(
   landmarks,

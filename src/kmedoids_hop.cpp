@@ -1,6 +1,6 @@
-// K-Medoids landmarks: farthest-first + restricted PAM with incremental SSSP.
-// Unweighted: hop BFS. Weighted: Dijkstra with edge cost = 1 / weight.
-// Do NOT add // [[Rcpp::export]]; register in geneSetEmbedding_init.cpp.
+// K-Medoids landmarks: farthest-first + restricted PAM.
+// Edge cost is 1 / weight (Dijkstra). Do NOT add // [[Rcpp::export]];
+// register in geneSetEmbedding_init.cpp.
 
 #include <Rcpp.h>
 
@@ -23,26 +23,6 @@ struct Edge {
   int to;
   double cost;
 };
-
-void bfs_from(int src,
-              const std::vector<std::vector<Edge>>& adj,
-              std::vector<double>& dist) {
-  std::fill(dist.begin(), dist.end(), kInf);
-  std::queue<int> q;
-  dist[static_cast<std::size_t>(src)] = 0.0;
-  q.push(src);
-  while (!q.empty()) {
-    const int u = q.front();
-    q.pop();
-    const double du = dist[static_cast<std::size_t>(u)];
-    for (const Edge& e : adj[static_cast<std::size_t>(u)]) {
-      if (dist[static_cast<std::size_t>(e.to)] == kInf) {
-        dist[static_cast<std::size_t>(e.to)] = du + 1.0;
-        q.push(e.to);
-      }
-    }
-  }
-}
 
 void dijkstra_from(int src,
                    const std::vector<std::vector<Edge>>& adj,
@@ -69,16 +49,6 @@ void dijkstra_from(int src,
   }
 }
 
-void sssp_from(int src,
-               const std::vector<std::vector<Edge>>& adj,
-               std::vector<double>& dist,
-               bool weighted) {
-  if (weighted) {
-    dijkstra_from(src, adj, dist);
-  } else {
-    bfs_from(src, adj, dist);
-  }
-}
 
 double total_cost(const std::vector<std::vector<double>>& dist_cols, int n, int k) {
   double cost = 0.0;
@@ -92,21 +62,13 @@ double total_cost(const std::vector<std::vector<double>>& dist_cols, int n, int 
   return cost;
 }
 
-double trial_cost(const std::vector<std::vector<double>>& dist_cols,
+double trial_cost(const std::vector<double>& best_other,
                   const std::vector<double>& dnew,
-                  int n,
-                  int k,
-                  int j) {
+                  int n) {
   double cost = 0.0;
   for (int v = 0; v < n; ++v) {
-    double best = dnew[static_cast<std::size_t>(v)];
-    for (int t = 0; t < k; ++t) {
-      if (t == j) {
-        continue;
-      }
-      best = std::min(best, dist_cols[static_cast<std::size_t>(t)][static_cast<std::size_t>(v)]);
-    }
-    cost += best;
+    cost += std::min(dnew[static_cast<std::size_t>(v)],
+                     best_other[static_cast<std::size_t>(v)]);
   }
   return cost;
 }
@@ -133,16 +95,14 @@ void assign_clusters(const std::vector<std::vector<double>>& dist_cols,
 }  // namespace
 
 // i, p, x: 0-based CSC of undirected adjacency (column j lists neighbors / weights).
-// weighted=TRUE → edge cost = 1/weight; FALSE → hop distance (ignores x magnitudes).
-// Returns 0-based medoid vertex indices (length k).
+// Edge cost = 1/weight. Returns 0-based medoid vertex indices (length k).
 RcppExport SEXP _geneSetEmbedding_kmedoids_hop(SEXP i_,
                                                SEXP p_,
                                                SEXP x_,
                                                SEXP k_,
                                                SEXP seed_,
                                                SEXP m_,
-                                               SEXP max_iter_,
-                                               SEXP weighted_) {
+                                               SEXP max_iter_) {
   BEGIN_RCPP
   const IntegerVector i(i_);
   const IntegerVector p(p_);
@@ -151,7 +111,6 @@ RcppExport SEXP _geneSetEmbedding_kmedoids_hop(SEXP i_,
   const int seed = as<int>(seed_);
   const int m = as<int>(m_);
   const int max_iter = as<int>(max_iter_);
-  const bool weighted = as<bool>(weighted_);
 
   const int n = p.size() - 1;
   if (n <= 0) {
@@ -167,7 +126,6 @@ RcppExport SEXP _geneSetEmbedding_kmedoids_hop(SEXP i_,
 
   std::vector<std::vector<Edge>> adj(static_cast<std::size_t>(n));
   std::vector<double> strength(static_cast<std::size_t>(n), 0.0);
-  std::vector<int> deg(static_cast<std::size_t>(n), 0);
   for (int j = 0; j < n; ++j) {
     const int start = p[j];
     const int end = p[j + 1];
@@ -175,9 +133,8 @@ RcppExport SEXP _geneSetEmbedding_kmedoids_hop(SEXP i_,
     nbrs.reserve(static_cast<std::size_t>(end - start));
     for (int e = start; e < end; ++e) {
       const double w = x[e];
-      const double cost = weighted ? (1.0 / std::max(w, 1e-15)) : 1.0;
+      const double cost = 1.0 / std::max(w, 1e-15);
       nbrs.push_back(Edge{i[e], cost});
-      deg[static_cast<std::size_t>(j)] += 1;
       strength[static_cast<std::size_t>(j)] += w;
     }
   }
@@ -193,15 +150,29 @@ RcppExport SEXP _geneSetEmbedding_kmedoids_hop(SEXP i_,
   std::mt19937 rng(static_cast<std::uint32_t>(seed));
   std::uniform_int_distribution<int> uni(0, n - 1);
 
+  std::vector<std::vector<double>> dist_cols(static_cast<std::size_t>(k),
+                                             std::vector<double>(static_cast<std::size_t>(n)));
   std::vector<int> medoids(static_cast<std::size_t>(k), -1);
   std::vector<char> selected(static_cast<std::size_t>(n), 0);
   std::vector<double> min_dist(static_cast<std::size_t>(n), kInf);
-  std::vector<double> scratch(static_cast<std::size_t>(n));
+  // ponytail: one n-vector per distinct source. First PAM pass still computes new candidates.
+  // A full-graph cache is n columns (~2GB at n=16185); only queried sources are stored.
+  std::vector<char> have_dist(static_cast<std::size_t>(n), 0);
+  std::vector<std::vector<double>> dist_cache(static_cast<std::size_t>(n));
+  auto cached_sssp = [&](int src) -> const std::vector<double>& {
+    const std::size_t s = static_cast<std::size_t>(src);
+    if (!have_dist[s]) {
+      dist_cache[s].resize(static_cast<std::size_t>(n));
+      dijkstra_from(src, adj, dist_cache[s]);
+      have_dist[s] = 1;
+    }
+    return dist_cache[s];
+  };
 
   medoids[0] = uni(rng);
   selected[static_cast<std::size_t>(medoids[0])] = 1;
-  sssp_from(medoids[0], adj, scratch, weighted);
-  min_dist = scratch;
+  dist_cols[0] = cached_sssp(medoids[0]);
+  min_dist = dist_cols[0];
 
   for (int t = 1; t < k; ++t) {
     int best_v = -1;
@@ -226,23 +197,16 @@ RcppExport SEXP _geneSetEmbedding_kmedoids_hop(SEXP i_,
     }
     medoids[static_cast<std::size_t>(t)] = best_v;
     selected[static_cast<std::size_t>(best_v)] = 1;
-    sssp_from(best_v, adj, scratch, weighted);
+    dist_cols[static_cast<std::size_t>(t)] = cached_sssp(best_v);
     for (int v = 0; v < n; ++v) {
-      min_dist[static_cast<std::size_t>(v)] =
-          std::min(min_dist[static_cast<std::size_t>(v)], scratch[static_cast<std::size_t>(v)]);
+      min_dist[static_cast<std::size_t>(v)] = std::min(
+          min_dist[static_cast<std::size_t>(v)],
+          dist_cols[static_cast<std::size_t>(t)][static_cast<std::size_t>(v)]);
     }
   }
 
-  std::vector<std::vector<double>> dist_cols(static_cast<std::size_t>(k),
-                                             std::vector<double>(static_cast<std::size_t>(n)));
-  for (int j = 0; j < k; ++j) {
-    sssp_from(medoids[static_cast<std::size_t>(j)], adj, dist_cols[static_cast<std::size_t>(j)],
-              weighted);
-  }
-
   std::vector<int> assign;
-  std::vector<double> dnew(static_cast<std::size_t>(n));
-  // ponytail: Top-M by degree (hop) or strength (weighted); raise m for fuller PAM.
+  // ponytail: Top-M by strength; raise m for fuller PAM.
   const int m_cap = std::max(1, m);
 
   for (int iter = 0; iter < max_iter; ++iter) {
@@ -263,22 +227,27 @@ RcppExport SEXP _geneSetEmbedding_kmedoids_hop(SEXP i_,
       }
 
       std::sort(members.begin(), members.end(), [&](int a, int b) {
-        if (weighted) {
-          const double sa = strength[static_cast<std::size_t>(a)];
-          const double sb = strength[static_cast<std::size_t>(b)];
-          if (sa != sb) {
-            return sa > sb;
-          }
-        } else {
-          const int da = deg[static_cast<std::size_t>(a)];
-          const int db = deg[static_cast<std::size_t>(b)];
-          if (da != db) {
-            return da > db;
-          }
+        const double sa = strength[static_cast<std::size_t>(a)];
+        const double sb = strength[static_cast<std::size_t>(b)];
+        if (sa != sb) {
+          return sa > sb;
         }
         return a < b;
       });
       const int n_cand = std::min(m_cap, static_cast<int>(members.size()));
+
+      // ponytail: one best_other column per replaced center. Candidate count is still m.
+      std::vector<double> best_other(static_cast<std::size_t>(n), kInf);
+      for (int t = 0; t < k; ++t) {
+        if (t == j) {
+          continue;
+        }
+        for (int v = 0; v < n; ++v) {
+          best_other[static_cast<std::size_t>(v)] = std::min(
+              best_other[static_cast<std::size_t>(v)],
+              dist_cols[static_cast<std::size_t>(t)][static_cast<std::size_t>(v)]);
+        }
+      }
 
       int best = medoids[static_cast<std::size_t>(j)];
       double best_cost = cost;
@@ -289,12 +258,12 @@ RcppExport SEXP _geneSetEmbedding_kmedoids_hop(SEXP i_,
         if (cand == medoids[static_cast<std::size_t>(j)]) {
           continue;
         }
-        sssp_from(cand, adj, dnew, weighted);
-        const double c2 = trial_cost(dist_cols, dnew, n, k, j);
+        const std::vector<double>& col = cached_sssp(cand);
+        const double c2 = trial_cost(best_other, col, n);
         if (c2 < best_cost) {
           best = cand;
           best_cost = c2;
-          best_col = dnew;
+          best_col = col;
         }
       }
 
