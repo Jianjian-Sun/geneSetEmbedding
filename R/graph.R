@@ -1,7 +1,97 @@
+#' Clean a PPI edge list before building a graph
+#'
+#' Optional preprocessing for edge tables: drop self-loops, collapse undirected
+#' duplicates to one orientation, and optionally keep edges above a weight
+#' cutoff. Call this before \code{\link{gsemb_build_graph}} /
+#' \code{\link{gsemb_fit}} when the input may contain self-loops, both
+#' directions of an undirected pair, or low-confidence scores. Already-clean
+#' edge lists can skip this step.
+#'
+#' @param edges A data.frame containing at least two columns for endpoints.
+#' @param node1,node2 Column names in \code{edges} for source/target.
+#' @param weight Optional column name in \code{edges} for edge weights. Required
+#'   when \code{score_cutoff} is not \code{NULL}.
+#' @param score_cutoff Optional lower bound on \code{weight}. Rows with
+#'   \code{weight <= score_cutoff} are dropped. Default \code{NULL} keeps all
+#'   weights. For STRING \code{combined_score}, a common choice is \code{700}.
+#' @param drop_self_loops Logical; drop rows where the two endpoints are equal.
+#' @param undirected_unique Logical; for each undirected pair, keep a single
+#'   row with endpoints ordered so \code{node1 < node2}. If both directions (or
+#'   other duplicates) remain after that, keep the row with the largest
+#'   \code{weight} when \code{weight} is set, otherwise the first row.
+#'
+#' @return A data.frame with the same columns as \code{edges}, possibly fewer
+#'   rows. Endpoint columns are character.
+#' @examples
+#' edges <- data.frame(
+#'   node1 = c("B", "A", "A", "C"),
+#'   node2 = c("A", "B", "A", "D"),
+#'   weight = c(800, 800, 900, 500)
+#' )
+#' gsemb_clean_edges(edges, weight = "weight", score_cutoff = 700)
+#' @seealso \code{\link{gsemb_build_graph}}, \code{\link{gsemb_fit}}
+#' @export
+gsemb_clean_edges <- function(edges,
+                              node1 = "node1",
+                              node2 = "node2",
+                              weight = NULL,
+                              score_cutoff = NULL,
+                              drop_self_loops = TRUE,
+                              undirected_unique = TRUE) {
+  if (!is.data.frame(edges)) stop("edges must be a data.frame")
+  if (!node1 %in% names(edges)) stop("node1 column not found")
+  if (!node2 %in% names(edges)) stop("node2 column not found")
+  if (!is.null(score_cutoff) && is.null(weight)) {
+    stop("weight must be set when score_cutoff is not NULL")
+  }
+  if (!is.null(weight) && !weight %in% names(edges)) stop("weight column not found")
+
+  out <- edges
+  a <- as.character(out[[node1]])
+  b <- as.character(out[[node2]])
+  out[[node1]] <- a
+  out[[node2]] <- b
+
+  if (isTRUE(drop_self_loops)) {
+    out <- out[a != b, , drop = FALSE]
+    a <- out[[node1]]
+    b <- out[[node2]]
+  }
+
+  if (!is.null(score_cutoff)) {
+    w <- as.numeric(out[[weight]])
+    out <- out[is.finite(w) & w > score_cutoff, , drop = FALSE]
+    a <- out[[node1]]
+    b <- out[[node2]]
+  }
+
+  if (isTRUE(undirected_unique) && nrow(out) > 0) {
+    left <- pmin(a, b)
+    right <- pmax(a, b)
+    out[[node1]] <- left
+    out[[node2]] <- right
+    pair <- paste(left, right, sep = "\r")
+    if (!is.null(weight)) {
+      w <- as.numeric(out[[weight]])
+      w[!is.finite(w)] <- -Inf
+      # Keep the highest-weight row per undirected pair.
+      ord <- order(pair, -w, seq_len(nrow(out)))
+      out <- out[ord, , drop = FALSE]
+      pair <- pair[ord]
+    }
+    out <- out[!duplicated(pair), , drop = FALSE]
+  }
+
+  rownames(out) <- NULL
+  out
+}
+
 #' Build a PPI graph adjacency matrix
 #'
 #' Construct a sparse adjacency matrix from an edge list. Node names are stored
-#' in the matrix dimnames and are used throughout the package.
+#' in the matrix dimnames and are used throughout the package. This function
+#' does not drop self-loops, collapse bidirectional undirected pairs, or apply
+#' a score cutoff; use \code{\link{gsemb_clean_edges}} first when needed.
 #'
 #' @param edges A data.frame containing at least two columns for endpoints.
 #' @param node1,node2 Column names in \code{edges} for source/target.
@@ -25,6 +115,7 @@
 #' # Build directed unweighted graph
 #' adj_dir <- gsemb_build_graph(edges, directed = TRUE)
 #' adj_dir
+#' @seealso \code{\link{gsemb_clean_edges}}
 #' @export
 gsemb_build_graph <- function(edges,
                               node1 = "node1",
