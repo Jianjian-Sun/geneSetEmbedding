@@ -50,3 +50,18 @@ test_that("score_cutoff requires weight", {
     "weight must be set"
   )
 })
+
+test_that("missing edge endpoints are counted and skipped", {
+  edges <- data.frame(
+    node1 = c("A", NA, "B", ""),
+    node2 = c("B", "C", NA, "D"),
+    weight = c(800, 900, 850, 750)
+  )
+  expect_warning(
+    out <- gsemb_clean_edges(edges, weight = "weight"),
+    "Dropped 3 edges with missing endpoints"
+  )
+  expect_equal(nrow(out), 1L)
+  expect_identical(out$node1, "A")
+  expect_identical(out$node2, "B")
+})

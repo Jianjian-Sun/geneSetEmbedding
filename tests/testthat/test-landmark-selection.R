@@ -44,6 +44,33 @@ test_that("degree selects nodes by incident edge-weight sum", {
   )
 })
 
+test_that("path-based landmark methods reject nonpositive and nonfinite weights", {
+  edges <- data.frame(
+    node1 = c("A", "B"), node2 = c("B", "C"), weight = c(800, -1)
+  )
+  adj <- gsemb_build_graph(edges, weight = "weight")
+  for (method in c("betweenness", "kmedoids")) {
+    expect_error(
+      gsemb_select_landmarks(adj, k = 1, method = method),
+      "finite and positive"
+    )
+  }
+
+  adj["B", "C"] <- Inf
+  adj["C", "B"] <- Inf
+  expect_error(
+    gsemb_select_landmarks(adj, k = 1, method = "betweenness"),
+    "finite and positive"
+  )
+
+  positive <- gsemb_build_graph(
+    transform(edges, weight = c(800, 2000)), weight = "weight"
+  )
+  for (method in c("betweenness", "kmedoids")) {
+    expect_length(gsemb_select_landmarks(positive, k = 1, method = method), 1L)
+  }
+})
+
 test_that("betweenness prefers bridge nodes on a path graph", {
   skip_if_not_installed("igraph")
   # A-B-C-D-E: middle node C has highest betweenness

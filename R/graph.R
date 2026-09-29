@@ -5,7 +5,8 @@
 #' cutoff. Call this before \code{\link{gsemb_build_graph}} /
 #' \code{\link{gsemb_fit}} when the input may contain self-loops, both
 #' directions of an undirected pair, or low-confidence scores. Already-clean
-#' edge lists can skip this step.
+#' edge lists can skip this step. Rows with missing or empty endpoint IDs are
+#' skipped with a warning giving the number of skipped rows.
 #'
 #' @param edges A data.frame containing at least two columns for endpoints.
 #' @param node1,node2 Column names in \code{edges} for source/target.
@@ -51,6 +52,15 @@ gsemb_clean_edges <- function(edges,
   b <- as.character(out[[node2]])
   out[[node1]] <- a
   out[[node2]] <- b
+
+  missing_endpoint <- is.na(a) | is.na(b) | a == "" | b == ""
+  n_missing <- sum(missing_endpoint)
+  if (n_missing > 0L) {
+    warning(sprintf("Dropped %d edges with missing endpoints", n_missing), call. = FALSE)
+    out <- out[!missing_endpoint, , drop = FALSE]
+    a <- out[[node1]]
+    b <- out[[node2]]
+  }
 
   if (isTRUE(drop_self_loops)) {
     out <- out[a != b, , drop = FALSE]
@@ -204,7 +214,9 @@ gsemb_transition_matrix <- function(adj, normalize = c("col", "row"), eps = 1e-1
 #'
 #' Choose landmark nodes by node strength, uniform random sampling,
 #' weight-aware betweenness, or weight-aware K-Medoids. Edge cost is
-#' \code{1 / weight}, so higher edge weight is a shorter path.
+#' \code{1 / weight}, so higher edge weight is a shorter path. For betweenness
+#' and K-Medoids, nonzero edge weights must be finite and positive; the scale
+#' may be 0--1, STRING 0--1000, or another positive scale.
 #'
 #' @param adj Adjacency matrix with rownames as node IDs.
 #' @param k Number of landmarks to select (capped at number of nodes).
@@ -234,6 +246,8 @@ gsemb_transition_matrix <- function(adj, normalize = c("col", "row"), eps = 1e-1
 #'   weight = c(1.0, 2.0, 0.5, 1.5, 1.0)
 #' )
 #' adj <- gsemb_build_graph(edges, weight = "weight")
+#' gsemb_select_landmarks(adj, k = 2, method = "degree")
+#' gsemb_select_landmarks(adj, k = 2, method = "betweenness")
 #'
 #' @export
 gsemb_select_landmarks <- function(adj,
@@ -247,6 +261,12 @@ gsemb_select_landmarks <- function(adj,
   nodes <- rownames(adj)
   if (is.null(nodes)) stop("adj must have rownames")
   k <- min(k, length(nodes))
+  if (method %in% c("betweenness", "kmedoids")) {
+    weights <- if (inherits(adj, "sparseMatrix")) adj@x else as.numeric(adj)
+    if (any(!is.finite(weights) | weights < 0)) {
+      stop("nonzero edge weights must be finite and positive")
+    }
+  }
   switch(
     method,
     degree = .select_landmarks_by_score(nodes, Matrix::rowSums(adj), k),

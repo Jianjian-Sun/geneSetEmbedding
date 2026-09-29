@@ -1,0 +1,5 @@
+method,peak_rss_kb,process_elapsed_sec,n_nodes,n_edges,k,seed,betweenness_cutoff
+baseline,223888,1.57,16185,236000,128,20260929,-1
+degree,224168,1.68,16185,236000,128,20260929,-1
+betweenness,280592,207.93,16185,236000,128,20260929,-1
+kmedoids,1414696,290.53,16185,236000,128,20260929,-1

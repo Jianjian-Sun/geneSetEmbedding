@@ -46,7 +46,9 @@ A character vector of landmark node IDs.
 \description{
 Choose landmark nodes by node strength, uniform random sampling,
 weight-aware betweenness, or weight-aware K-Medoids. Edge cost is
-\code{1 / weight}, so higher edge weight is a shorter path.
+\code{1 / weight}, so higher edge weight is a shorter path. For betweenness
+and K-Medoids, nonzero edge weights must be finite and positive; the scale
+may be 0--1, STRING 0--1000, or another positive scale.
 }
 \examples{
 # Build a small graph
@@ -56,28 +58,7 @@ edges <- data.frame(
   weight = c(1.0, 2.0, 0.5, 1.5, 1.0)
 )
 adj <- gsemb_build_graph(edges, weight = "weight")
+gsemb_select_landmarks(adj, k = 2, method = "degree")
+gsemb_select_landmarks(adj, k = 2, method = "betweenness")
 
-# Select 2 landmarks by node strength
-lm_deg <- gsemb_select_landmarks(adj, k = 2, method = "degree")
-lm_deg
-
-# Select 2 landmarks randomly
-lm_rnd <- gsemb_select_landmarks(adj, k = 2, method = "random", seed = 42)
-lm_rnd
-
-# Select by truncated betweenness (edge cost = 1/weight, default cutoff = 4)
-lm_bc <- gsemb_select_landmarks(adj, k = 2, method = "betweenness")
-lm_bc
-
-# K-Medoids (edge cost = 1/weight). On a unit-weight path, k = 1 is the center.
-path <- data.frame(
-  node1 = c("A", "B", "C", "D"),
-  node2 = c("B", "C", "D", "E"),
-  weight = c(1, 1, 1, 1)
-)
-gsemb_select_landmarks(
-  gsemb_build_graph(path, weight = "weight"),
-  k = 1,
-  method = "kmedoids"
-)
 }
