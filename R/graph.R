@@ -111,42 +111,113 @@ gsemb_transition_matrix <- function(adj, normalize = c("col", "row"), eps = 1e-1
 
 #' Select landmark nodes for diffusion features
 #'
-#' Choose landmark nodes either by degree (highest first) or random sampling.
+#' Choose landmark nodes by node strength, uniform random sampling,
+#' weight-aware betweenness, or weight-aware K-Medoids. Edge cost is
+#' \code{1 / weight}, so higher edge weight is a shorter path.
 #'
 #' @param adj Adjacency matrix with rownames as node IDs.
 #' @param k Number of landmarks to select (capped at number of nodes).
-#' @param method \code{"degree"} or \code{"random"}.
-#' @param seed Random seed used when \code{method="random"}.
+#' @param method Landmark selection method: \code{"degree"} ranks by the sum of
+#'   incident edge weights, \code{"random"} samples nodes uniformly,
+#'   \code{"betweenness"} ranks by betweenness with edge lengths
+#'   \code{1 / weight}, and \code{"kmedoids"} selects medoids on the largest
+#'   connected component using the same edge costs (farthest-first, then
+#'   restricted PAM).
+#' @param seed Random seed used when \code{method="random"} or
+#'   \code{method="kmedoids"} (farthest-first start).
+#' @param betweenness_cutoff Path-length cutoff for \code{igraph::betweenness}
+#'   when \code{method="betweenness"}, measured on the sum of edge costs
+#'   (\code{1/weight}). Default \code{-1} is exact betweenness. A positive value
+#'   drops paths longer than that cost. Ignored for other methods.
+#' @param kmedoids_m Per-cluster candidate cap (strength Top-M) for restricted
+#'   PAM when \code{method="kmedoids"}. Ignored for other methods.
+#' @param kmedoids_max_iter Maximum PAM passes when \code{method="kmedoids"}.
+#'   Ignored for other methods.
 #'
 #' @return A character vector of landmark node IDs.
 #' @examples
 #' # Build a small graph
 #' edges <- data.frame(
 #'   node1 = c("A", "B", "C", "D", "E"),
-#'   node2 = c("B", "C", "D", "E", "A")
+#'   node2 = c("B", "C", "D", "E", "A"),
+#'   weight = c(1.0, 2.0, 0.5, 1.5, 1.0)
 #' )
-#' adj <- gsemb_build_graph(edges)
+#' adj <- gsemb_build_graph(edges, weight = "weight")
 #'
-#' # Select 2 landmarks by degree
-#' lm_deg <- gsemb_select_landmarks(adj, k = 2, method = "degree")
-#' lm_deg
-#'
-#' # Select 2 landmarks randomly
-#' lm_rnd <- gsemb_select_landmarks(adj, k = 2, method = "random", seed = 42)
-#' lm_rnd
 #' @export
-gsemb_select_landmarks <- function(adj, k = 128, method = c("degree", "random"), seed = 1) {
+gsemb_select_landmarks <- function(adj,
+                                   k = 128,
+                                   method = c("degree", "random", "betweenness", "kmedoids"),
+                                   seed = 1,
+                                   betweenness_cutoff = -1,
+                                   kmedoids_m = 50,
+                                   kmedoids_max_iter = 10) {
   method <- match.arg(method)
   nodes <- rownames(adj)
   if (is.null(nodes)) stop("adj must have rownames")
+  k <- min(k, length(nodes))
+  switch(
+    method,
+    degree = .select_landmarks_by_score(nodes, Matrix::rowSums(adj), k),
+    random = {
+      set.seed(seed)
+      sample(nodes, k)
+    },
+    betweenness = .select_landmarks_betweenness(
+      adj, nodes, k, betweenness_cutoff
+    ),
+    kmedoids = .select_landmarks_kmedoids(
+      adj, k, seed, kmedoids_m, kmedoids_max_iter
+    )
+  )
+}
+
+.select_landmarks_by_score <- function(nodes, score, k) {
+  nodes[order(score, decreasing = TRUE)][seq_len(k)]
+}
+
+.select_landmarks_betweenness <- function(adj, nodes, k, cutoff) {
+  g <- igraph::graph_from_adjacency_matrix(
+    adj,
+    mode = "undirected",
+    weighted = TRUE,
+    diag = FALSE
+  )
+  costs <- 1 / pmax(igraph::E(g)$weight, .Machine$double.eps)
+  bc <- igraph::betweenness(
+    g,
+    directed = FALSE,
+    weights = costs,
+    cutoff = cutoff
+  )
+  .select_landmarks_by_score(nodes, bc, k)
+}
+
+.select_landmarks_kmedoids <- function(adj, k, seed, m, max_iter) {
+  g <- igraph::graph_from_adjacency_matrix(
+    adj != 0,
+    mode = "undirected",
+    diag = FALSE
+  )
+  comp <- igraph::components(g)
+  keep <- which(comp$membership == which.max(comp$csize))
+  nodes <- igraph::V(g)$name[keep]
   n <- length(nodes)
-  k <- min(k, n)
-  if (method == "degree") {
-    deg <- Matrix::rowSums(adj != 0)
-    ord <- order(deg, decreasing = TRUE)
-    nodes[ord][seq_len(k)]
-  } else {
-    set.seed(seed)
-    sample(nodes, k)
+  k <- min(as.integer(k), n)
+  if (k >= n) {
+    return(nodes)
   }
+
+  # CSC of the induced subgraph for C++ SSSP / restricted PAM.
+  sub <- Matrix::drop0(adj[nodes, nodes, drop = FALSE])
+  idx0 <- kmedoids_hop(
+    as.integer(sub@i),
+    as.integer(sub@p),
+    as.numeric(sub@x),
+    as.integer(k),
+    as.integer(seed),
+    as.integer(m),
+    as.integer(max_iter)
+  )
+  nodes[as.integer(idx0) + 1L]
 }
