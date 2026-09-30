@@ -35,7 +35,7 @@ other duplicates) remain after that, keep the row with the largest
 }
 \value{
 A data.frame with the same columns as \code{edges}, possibly fewer
-rows. Endpoint columns are character.
+  rows. Endpoint columns are character.
 }
 \description{
 Optional preprocessing for edge tables: drop self-loops, collapse undirected
@@ -43,7 +43,8 @@ duplicates to one orientation, and optionally keep edges above a weight
 cutoff. Call this before \code{\link{gsemb_build_graph}} /
 \code{\link{gsemb_fit}} when the input may contain self-loops, both
 directions of an undirected pair, or low-confidence scores. Already-clean
-edge lists can skip this step.
+edge lists can skip this step. Rows with missing or empty endpoint IDs are
+skipped with a warning giving the number of skipped rows.
 }
 \examples{
 edges <- data.frame(
