@@ -106,6 +106,18 @@ gsemb_fit_gene_embedding <- function(node_features,
   list(embedding = emb, model = model, method = method)
 }
 
+.gsemb_col_vars <- function(X) {
+  if (requireNamespace("matrixStats", quietly = TRUE)) {
+    return(matrixStats::colVars(X, na.rm = FALSE))
+  }
+  n <- nrow(X)
+  if (n < 2L) {
+    return(rep(NA_real_, ncol(X)))
+  }
+  mu <- colMeans(X)
+  colSums((X - rep(mu, each = n))^2) / (n - 1)
+}
+
 #' Fit diagonal Gaussian embeddings for gene sets from member genes
 #'
 #' Compute mean and diagonal variance of member gene embeddings for each set.
@@ -156,8 +168,7 @@ gsemb_fit_set_gaussians_from_members <- function(gene_embedding,
     if (nrow(X) == 1) {
       var[sid, ] <- rep(eps, d)
     } else {
-      v <- apply(X, 2, stats::var)
-      var[sid, ] <- pmax(v, eps)
+      var[sid, ] <- pmax(.gsemb_col_vars(X), eps)
     }
   }
   list(mu = mu, var = var)
