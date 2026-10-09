@@ -47,35 +47,47 @@ gsemb_gene_to_set_score <- function(gene_embedding,
   if (!all(dim(mu) == dim(var))) stop("set_mu and set_var must have the same dimensions")
   if (ncol(E) != ncol(mu)) stop("gene_embedding and set_mu must have the same number of columns")
   var <- pmax(var, eps)
+  inv_var <- 1 / var
 
-  inv_var <- 1 / var # n_s x d
-
-  # Tile gene matrix (n_g x d) so each row of E is repeated n_s times:
-  # E_tiled: (n_g * n_s) x d  [row order: set1_gene1, set1_gene2, ..., set2_gene1, ...]
-  E_tiled <- E[rep(seq_len(nrow(E)), each = nrow(mu)), , drop = FALSE]
-  # Tile mu (n_s x d) so each set mean is repeated n_g times, same block order:
-  # mu_tiled: (n_g * n_s) x d
-  mu_tiled <- mu[rep(seq_len(nrow(mu)), times = nrow(E)), , drop = FALSE]
-  # Tile inv_var (n_s x d) the same way:
-  inv_var_tiled <- inv_var[rep(seq_len(nrow(mu)), times = nrow(E)), , drop = FALSE]
-
-  # Squared differences weighted by inverse variance: (n_g * n_s) x d
-  diff_sq <- (E_tiled - mu_tiled)^2 * inv_var_tiled
-  # Sum over dimensions -> weighted Mahalanobis distances: (n_g * n_s)
-  md2 <- rowSums(diff_sq)
-
-  # Reshape back to n_g x n_s matrix
-  out <- matrix(md2, nrow = nrow(E), ncol = nrow(mu), byrow = TRUE)
+  #   md2[g,s] = sum_d (E[g,d]-mu[s,d])^2/var[s,d]
+  #            = E^2 %*% t(inv_var) - 2*E %*% t(mu*inv_var) + sum_d mu^2/var
+  E2 <- E * E
+  mu_w <- mu * inv_var
+  md2 <- E2 %*% t(inv_var) - 2 * (E %*% t(mu_w))
+  md2 <- sweep(md2, 2L, rowSums(mu * mu * inv_var), "+")
 
   if (score == "neg_mahalanobis") {
-    out <- -out
+    out <- -md2
   } else {
-    logdet <- rowSums(log(var)) # n_s
-    out <- -0.5 * (out + rep(logdet, each = nrow(E)))
+    logdet <- rowSums(log(var))
+    out <- -0.5 * sweep(md2, 2L, logdet, "+")
   }
   rownames(out) <- rownames(E)
   colnames(out) <- rownames(mu)
   out
+}
+
+.gsemb_softmax_mass_k <- function(s_sorted, mass, temperature, min_size, max_size) {
+  x <- (s_sorted - max(s_sorted)) / temperature
+  w <- exp(x)
+  w <- w / sum(w)
+  cumw <- cumsum(w)
+  k <- which(cumw >= mass)[1]
+  if (is.na(k) || k < 1) k <- 1
+  k <- max(k, min_size)
+  k <- min(k, max_size, length(s_sorted))
+  k
+}
+
+.gsemb_softmax_mass_k_matrix <- function(scores_mat, mass, temperature, min_size, max_size) {
+  S <- scores_mat - rep(apply(scores_mat, 2, max), each = nrow(scores_mat))
+  W <- exp(S / temperature)
+  W <- W / rep(colSums(W), each = nrow(W))
+  cumw <- apply(W, 2, cumsum)
+  dim(cumw) <- dim(W)
+  k_raw <- apply(cumw >= mass, 2, function(col) which(col)[1])
+  k_raw[is.na(k_raw)] <- 1L
+  pmin(nrow(scores_mat), max_size, pmax(min_size, k_raw))
 }
 
 #' Create concise gene sets from embeddings
@@ -166,6 +178,24 @@ gsemb_make_concise_gene_sets <- function(gene_embedding,
     all_scores <- gsemb_gene_to_set_score(E, mu, var, score = score, eps = eps)
   }
 
+  if (select == "softmax_mass" && !restrict_to_members) {
+    if (!is.numeric(mass) || length(mass) != 1 || mass <= 0 || mass > 1) stop("mass must be in (0, 1]")
+    if (!is.numeric(temperature) || length(temperature) != 1 || temperature <= 0) stop("temperature must be > 0")
+    scores_mat <- gsemb_gene_to_set_score(E, mu, var, score = score, eps = eps)
+    ord <- apply(scores_mat, 2, order, decreasing = TRUE)
+    dim(ord) <- dim(scores_mat)
+    sorted_scores <- vapply(
+      seq_len(ncol(scores_mat)),
+      function(j) scores_mat[ord[, j], j],
+      numeric(nrow(scores_mat))
+    )
+    dim(sorted_scores) <- dim(scores_mat)
+    k_vec <- .gsemb_softmax_mass_k_matrix(sorted_scores, mass, temperature, min_size, max_size)
+    for (j in seq_along(set_ids)) {
+      sid <- set_ids[j]
+      concise[[sid]] <- rownames(E)[ord[, j]][seq_len(k_vec[j])]
+    }
+  } else {
   for (sid in set_ids) {
     if (restrict_to_members) {
       if (!sid %in% names(gene_sets)) next
@@ -210,17 +240,10 @@ gsemb_make_concise_gene_sets <- function(gene_embedding,
     } else {
       if (!is.numeric(mass) || length(mass) != 1 || mass <= 0 || mass > 1) stop("mass must be in (0, 1]")
       if (!is.numeric(temperature) || length(temperature) != 1 || temperature <= 0) stop("temperature must be > 0")
-      x <- (s_sorted - max(s_sorted)) / temperature
-      w <- exp(x)
-      w <- w / sum(w)
-      cumw <- cumsum(w)
-      k <- which(cumw >= mass)[1]
-      if (is.na(k) || k < 1) k <- 1
-      if (k < min_size) k <- min_size
-      if (k > max_size) k <- max_size
-      k <- min(k, length(candidates))
+      k <- .gsemb_softmax_mass_k(s_sorted, mass, temperature, min_size, max_size)
       concise[[sid]] <- candidates[seq_len(k)]
     }
+  }
   }
   concise <- concise[vapply(concise, length, integer(1)) > 0]
   concise
